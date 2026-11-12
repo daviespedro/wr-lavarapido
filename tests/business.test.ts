@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createEmptyDatabase } from '../src/lib/data';
 import { registerVehicle, addTransaction, dailyLedger, finishVehicle } from '../src/lib/business';
-import { parseMoney } from '../src/lib/format';
+import { localDate, parseMoney } from '../src/lib/format';
 const now = '2026-11-08T16:00:00.000Z';
 const day = '2026-11-08';
 const input = { phone: '(11) 98765-4321', name: 'Cliente', model: 'Veículo', plate: 'bra-2e19', serviceId: 'lavagem', amount: 12345 };
@@ -23,7 +23,11 @@ test('customer history normalizes data, increments visits and rejects duplicate 
   assert.equal(next.vehicles[0].client.plate, 'BRA2E19');
   assert.equal(next.vehicles[0].status, 'Aguardando');
   assert.equal(next.vehicles[0].amount, 12345);
-  assert.equal(next.transactions.length, 0);
+  assert.equal(next.transactions.length, 1);
+  assert.equal(next.transactions[0].description, 'Lavagem Completa — Veículo (BRA2E19)');
+  assert.equal(next.transactions[0].vehicleId, 'vehicle-1');
+  assert.equal(next.transactions[0].type, 'entrada');
+  assert.equal(dailyLedger(next.transactions, localDate(new Date(now))).income, 12345);
   assert.equal(db.vehicles.length, 0);
   assert.throws(() => registerVehicle(next, input, 'v2', now), /já está/);
 });
@@ -59,7 +63,7 @@ test('daily ledger orders movements and isolates each date', () => {
   assert.equal(dailyLedger(db.transactions, '2030-01-01').balance, -123);
 });
 
-test('checkout uses the persisted custom amount and records income exactly once', () => {
+test('checkout preserves income already recorded at registration', () => {
   const registered = registerVehicle(createEmptyDatabase(), input, 'vehicle-1', now);
   const db = JSON.parse(JSON.stringify(registered));
   assert.equal(db.vehicles[0].amount, 12345);
@@ -69,8 +73,17 @@ test('checkout uses the persisted custom amount and records income exactly once'
   assert.equal(next.vehicles.length, 0);
   assert.equal(next.transactions.length, 1);
   assert.equal(next.transactions[0].amount, 12345);
-  assert.equal(dailyLedger(next.transactions, day).balance, 12345);
+  assert.deepEqual(next.transactions, registered.transactions);
   assert.throws(() => finishVehicle(next, 'vehicle-1', 'payment-2', now, day), /concluído/);
+});
+
+test('checkout records income for an older vehicle without a linked transaction', () => {
+  const registered = registerVehicle(createEmptyDatabase(), input, 'old-vehicle', now);
+  const db = { ...registered, transactions: [] };
+  db.vehicles[0].status = 'Pronto';
+  const next = finishVehicle(db, 'old-vehicle', 'payment', now, day);
+  assert.equal(next.vehicles.length, 0);
+  assert.equal(dailyLedger(next.transactions, day).income, 12345);
 });
 
 test('backup validation accepts saved custom values and rejects damaged financial data', async () => {

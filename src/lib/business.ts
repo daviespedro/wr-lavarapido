@@ -1,5 +1,5 @@
-import type { Database, ReceptionInput, Transaction } from './types';
-import { digits } from './format';
+import type { Database, ReceptionInput, Transaction, Vehicle } from './types';
+import { digits, localDate } from './format';
 import { services } from './data';
 export function registerVehicle(db: Database, input: ReceptionInput, id: string, now: string): Database {
   const phone = digits(input.phone);
@@ -12,7 +12,9 @@ export function registerVehicle(db: Database, input: ReceptionInput, id: string,
   if (db.vehicles.some(v => v.client.plate === plate)) throw new Error('Este veículo já está no pátio.');
   const previous = db.clients.find(c => c.phone === phone);
   const client = { phone, name: input.name.trim(), model: input.model.trim(), plate, visits: (previous?.visits ?? 0) + 1 };
-  return { ...db, clients: [...db.clients.filter(c => c.phone !== phone), client], vehicles: [...db.vehicles, { id, client, serviceId: input.serviceId, amount: input.amount, status: 'Aguardando', arrivedAt: now }] };
+  const vehicle: Vehicle = { id, client, serviceId: input.serviceId, amount: input.amount, status: 'Aguardando', arrivedAt: now };
+  const next = recordVehicleIncome(db, vehicle, `reception-${id}`, now, localDate(new Date(now)));
+  return { ...next, clients: [...db.clients.filter(c => c.phone !== phone), client], vehicles: [...db.vehicles, vehicle] };
 }
 export function addTransaction(db: Database, transaction: Transaction): Database {
   if (!transaction.description.trim()) throw new Error('Informe a descrição da transação.');
@@ -43,8 +45,17 @@ function periodLedger(transactions: Transaction[]) {
 export function finishVehicle(db: Database, id: string, transactionId: string, now: string, day: string): Database {
   const vehicle = db.vehicles.find(v => v.id === id);
   if (!vehicle) throw new Error('Este atendimento já foi concluído.');
-  if (vehicle.status !== 'Pronto') throw new Error('Marque o veículo como pronto antes de receber.');
-  const service = services.find(s => s.id === vehicle.serviceId)!;
-  const next = addTransaction(db, { id: transactionId, date: day, description: `${service.name} — ${vehicle.client.model}`, type: 'entrada', amount: vehicle.amount, createdAt: now, vehicleId: id });
+  if (vehicle.status !== 'Pronto') throw new Error('Marque o veículo como pronto antes de finalizar.');
+  const next = hasVehicleIncome(db, id) ? db : recordVehicleIncome(db, vehicle, transactionId, now, day);
   return { ...next, vehicles: db.vehicles.filter(v => v.id !== id) };
+}
+export function hasVehicleIncome(db: Database, vehicleId: string) {
+  return db.transactions.some(transaction => transaction.vehicleId === vehicleId);
+}
+function recordVehicleIncome(db: Database, vehicle: Vehicle, id: string, now: string, day: string): Database {
+  const service = services.find(s => s.id === vehicle.serviceId)!;
+  return addTransaction(db, {
+    id, date: day, description: `${service.name} — ${vehicle.client.model} (${vehicle.client.plate})`,
+    type: 'entrada', amount: vehicle.amount, createdAt: now, vehicleId: vehicle.id,
+  });
 }

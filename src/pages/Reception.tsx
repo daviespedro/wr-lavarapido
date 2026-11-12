@@ -6,7 +6,7 @@ import { VehicleDialog } from '../components/VehicleDialog';
 import { services } from '../lib/data';
 import { digits, phoneLabel, localDate } from '../lib/format';
 import { commitDatabase, useDatabase } from '../lib/store';
-import { finishVehicle, registerVehicle } from '../lib/business';
+import { finishVehicle, hasVehicleIncome, registerVehicle } from '../lib/business';
 import type { ReceptionInput, VehicleStatus } from '../lib/types';
 const emptyForm: ReceptionForm = { phone: '', name: '', model: '', plate: '', serviceId: 'lavagem' };
 type ReceptionForm = Omit<ReceptionInput, 'amount'>;
@@ -28,7 +28,7 @@ export function Reception() {
     event.preventDefault();
     try {
       commitDatabase(current => registerVehicle(current, { ...form, amount: /^\d+(?:[.,]\d{1,2})?$/.test(amount) ? Math.round(Number(amount.replace(',', '.')) * 100) : NaN }, crypto.randomUUID(), new Date().toISOString()));
-      setForm(emptyForm); setAmount(''); setNotice({ message: 'Entrada registrada. O veículo já está no pátio.' });
+      setForm(emptyForm); setAmount(''); setNotice({ message: 'Entrada registrada no pátio e no caixa.' });
     } catch (error) { setNotice({ message: (error as Error).message, error: true }); }
   }
   function updateStatus(status: VehicleStatus) {
@@ -38,7 +38,7 @@ export function Reception() {
   function finish() {
     try {
       commitDatabase(current => finishVehicle(current, selected!, crypto.randomUUID(), new Date().toISOString(), localDate()));
-      setSelected(null); setNotice({ message: 'Atendimento concluído e recebimento lançado no caixa.' });
+      setSelected(null); setNotice({ message: 'Atendimento concluído. O veículo saiu do pátio.' });
     } catch (error) { setSelected(null); setNotice({ message: (error as Error).message, error: true }); }
   }
   return <>
@@ -56,6 +56,6 @@ export function Reception() {
     <section className="yard" aria-labelledby="yard-title"><h2 id="yard-title">Veículos no pátio</h2><p className="muted yard-count">{db.vehicles.length} {db.vehicles.length === 1 ? 'carro em atendimento' : 'carros em atendimento'}</p>
       {db.vehicles.length ? <div className="vehicle-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">{db.vehicles.map(vehicle => <VehicleCard key={vehicle.id} vehicle={vehicle} onSelect={() => setSelected(vehicle.id)}/>)}</div> : <div className="empty-state panel"><Car size={30}/><p>Nenhum veículo no pátio.</p><span>Registre uma entrada para iniciar um atendimento.</span></div>}
     </section>
-    {selectedVehicle && <VehicleDialog vehicle={selectedVehicle} onClose={() => setSelected(null)} onStatus={updateStatus} onFinish={finish}/>}
+    {selectedVehicle && <VehicleDialog vehicle={selectedVehicle} incomeRecorded={hasVehicleIncome(db, selectedVehicle.id)} onClose={() => setSelected(null)} onStatus={updateStatus} onFinish={finish}/>}
   </>;
 }
