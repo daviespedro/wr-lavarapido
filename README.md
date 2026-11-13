@@ -27,7 +27,7 @@ O diretório `dist/` é a versão estática de produção. Configure o servidor 
 - **Pátio na Recepção:** abaixo do formulário de entrada, abra o atendimento, inicie a lavagem e marque o serviço como finalizado. O WhatsApp abre em outra aba com o aviso de retirada preenchido; o envio depende de conexão e de ação do operador. No fechamento, selecione Dinheiro, PIX, Crédito ou Débito. O pagamento entra no caixa, e Crédito e Débito descontam 3%, arredondados para centavos. Lançamentos feitos pela versão anterior são reaproveitados na data original.
 - **Caixa:** selecione a data, informe descrição, tipo e valor (ex.: `210,50` ou `1.234,56`). A data também seleciona o fechamento exibido. Os totais são do dia escolhido. Cada saldo começa em zero e acumula as transações daquele dia ordenadas por momento de criação. Não há transferência automática de saldo entre dias.
 
-- **Despesas recorrentes:** cadastre no Caixa a descrição, o valor e o dia do vencimento (1 a 31). Ao abrir o sistema ou selecionar um mês do relatório, as despesas já vencidas entram no caixa na data do vencimento, uma vez por mês e ano. Se o dia não existir no mês, não há lançamento naquele mês. Remover uma despesa impede novos lançamentos automáticos e preserva os anteriores.
+- **Despesas recorrentes:** cadastre no Caixa a descrição, o valor e o dia do vencimento (1 a 31). Ao abrir o Caixa, cadastrar uma despesa ou selecionar um mês do relatório, as despesas entram no extrato na data do vencimento, uma vez por mês e ano. Se o dia não existir no mês, não há lançamento naquele mês. Remover uma despesa impede novos lançamentos automáticos e preserva os anteriores.
 
 ## Persistência
 

@@ -4,6 +4,7 @@ import type { Database, RecurringExpense } from './types';
 import { validateDatabase } from './database';
 import { applyRecurring, EXPENSES_KEY, LEGACY_EXPENSES_KEY, LOGS_KEY, validateExpenses, validateLogs } from './recurring';
 
+export const TRANSACTIONS_KEY = 'transacoes';
 export const STORAGE_KEY = 'wr-lava-rapido:v2';
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach(listener => listener());
@@ -12,9 +13,13 @@ const read = (key: string, fallback: unknown) => {
   const raw = localStorage.getItem(key);
   return raw === null ? fallback : JSON.parse(raw);
 };
-const readDatabase = () => validateDatabase(read(STORAGE_KEY, createEmptyDatabase()));
+const readDatabase = () => {
+  const db = validateDatabase(read(STORAGE_KEY, createEmptyDatabase()));
+  const transactions = JSON.parse(localStorage.getItem(TRANSACTIONS_KEY) ?? 'null');
+  return transactions === null ? db : validateDatabase({ ...db, transactions });
+};
 const readExpenses = () => validateExpenses(read(EXPENSES_KEY, null) ?? read(LEGACY_EXPENSES_KEY, []));
-const readLogs = () => validateLogs(read(LOGS_KEY, []));
+const readLogs = () => validateLogs(read(LOGS_KEY, null) ?? []);
 const save = (key: string, value: unknown) => localStorage.setItem(key, JSON.stringify(value));
 function refresh() {
   try {
@@ -28,32 +33,35 @@ function refresh() {
 }
 refresh();
 window.addEventListener('storage', event => {
-  if (event.key === null || [STORAGE_KEY, EXPENSES_KEY, LEGACY_EXPENSES_KEY, LOGS_KEY].includes(event.key)) refresh();
+  if (event.key === null || [STORAGE_KEY, TRANSACTIONS_KEY, EXPENSES_KEY, LEGACY_EXPENSES_KEY, LOGS_KEY].includes(event.key)) refresh();
 });
 function subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; }
 export const useDatabase = () => useSyncExternalStore(subscribe, () => snapshot);
 export function commitDatabase(update: (current: Database) => Database) {
   if (snapshot.error) throw new Error(snapshot.error);
-  save(STORAGE_KEY, update(readDatabase()));
+  const next = update(readDatabase());
+  save(TRANSACTIONS_KEY, next.transactions);
+  save(STORAGE_KEY, next);
   refresh();
 }
 export function processRecurring(period: string, today = new Date()) {
-  if (snapshot.error) throw new Error(snapshot.error);
   const db = readDatabase();
-  const storedLogs = read(LOGS_KEY, []);
+  const storedLogs = JSON.parse(localStorage.getItem(LOGS_KEY) ?? 'null') ?? [];
   const logs = validateLogs(storedLogs);
-  const expenses = readExpenses();
+  const expenses = validateExpenses(JSON.parse(localStorage.getItem(EXPENSES_KEY) ?? 'null')
+    ?? JSON.parse(localStorage.getItem(LEGACY_EXPENSES_KEY) ?? 'null') ?? []);
   const next = applyRecurring(db, expenses, logs, period, today);
   if (localStorage.getItem(EXPENSES_KEY) === null && localStorage.getItem(LEGACY_EXPENSES_KEY) !== null) {
     save(EXPENSES_KEY, expenses);
   }
-  if (next.db !== db) save(STORAGE_KEY, next.db);
-  try {
-    if (JSON.stringify(storedLogs) !== JSON.stringify(next.logs)) save(LOGS_KEY, next.logs);
-  } finally {
-    if (next.db !== db) refresh();
+  const hasChanges = next.hasChanges || JSON.stringify(storedLogs) !== JSON.stringify(next.logs);
+  if (hasChanges) {
+    save(TRANSACTIONS_KEY, next.db.transactions);
+    save(LOGS_KEY, next.logs);
+    refresh();
   }
 }
+
 export function updateRecurring(update: (expenses: RecurringExpense[]) => RecurringExpense[]) {
   if (snapshot.error) throw new Error(snapshot.error);
   save(EXPENSES_KEY, validateExpenses(update(readExpenses())));
@@ -73,6 +81,7 @@ export function parseBackup(value: unknown): StorageEntries {
   if (!storage || typeof storage !== 'object' || Array.isArray(storage) || !Object.values(storage).every(v => typeof v === 'string')) throw new Error('Backup inválido.');
   const entries = storage as StorageEntries;
   if (Object.hasOwn(entries, STORAGE_KEY)) validateDatabase(JSON.parse(entries[STORAGE_KEY]));
+  if (Object.hasOwn(entries, TRANSACTIONS_KEY)) validateDatabase({ ...createEmptyDatabase(), transactions: JSON.parse(entries[TRANSACTIONS_KEY]) });
   if (Object.hasOwn(entries, LEGACY_EXPENSES_KEY)) validateExpenses(JSON.parse(entries[LEGACY_EXPENSES_KEY]));
   if (Object.hasOwn(entries, EXPENSES_KEY)) validateExpenses(JSON.parse(entries[EXPENSES_KEY]));
   if (Object.hasOwn(entries, LOGS_KEY)) validateLogs(JSON.parse(entries[LOGS_KEY]));

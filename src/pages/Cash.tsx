@@ -10,13 +10,17 @@ import type { Transaction } from '../lib/types';
 import { addTransaction, dailyLedger, cardFee } from '../lib/business';
 import { currency, localDate, numberLabel, dateLabel, parseMoney } from '../lib/format';
 export function Cash({ month, setMonth }: { month: string; setMonth: (month: string) => void }) {
-  const { db, expenses, error: storageError } = useDatabase();
+  const { db, error: storageError } = useDatabase();
   const [recurringError, setRecurringError] = useState('');
-  useEffect(() => {
-    if (storageError) return;
-    try { processRecurring(month); setRecurringError(''); }
-    catch (error) { setRecurringError((error as Error).message); }
-  }, [month, db, expenses, storageError]);
+  function syncRecurring(period: string) {
+    try {
+      processRecurring(period);
+      setRecurringError('');
+    } catch (error) {
+      setRecurringError((error as Error).message);
+    }
+  }
+  useEffect(() => { syncRecurring(month); }, [month]);
   const [date, setDate] = useState(localDate());
   const [reportDay, setReportDay] = useState(localDate());
   const [reportKind, setReportKind] = useState<'day' | 'month'>('day');
@@ -72,7 +76,7 @@ export function Cash({ month, setMonth }: { month: string; setMonth: (month: str
       <button className="primary" disabled={!!storageError}><Plus size={18}/> LANÇAR</button>
     </form></section>
     <div className="ledger-panel panel"><div className="table-scroll"><table><caption className="sr-only">Movimentações de {dateLabel(date)} com saldo acumulado em ordem cronológica</caption><thead><tr><th scope="col">DIA</th><th scope="col">DESCRIÇÃO</th><th scope="col" className="numeric">ENTRADAS LÍQUIDAS (R$)</th><th scope="col" className="numeric">SAÍDAS (R$)</th><th scope="col" className="numeric">SALDO (R$)</th></tr></thead><tbody>{ledger.rows.map(row => <tr key={row.id}><td className="muted">{dateLabel(row.date)}</td><td>{row.description}</td><td className="numeric income">{row.type === 'entrada' ? numberLabel(row.amount - cardFee(row.amount, row.payment)) : '–'}</td><td className="numeric expenses">{row.type === 'saida' ? numberLabel(row.amount) : '–'}</td><td className="numeric row-balance">{numberLabel(row.balance)}</td></tr>)}{!ledger.rows.length && <tr><td colSpan={5} className="empty-ledger">Nenhuma transação neste dia. Faça o primeiro lançamento acima.</td></tr>}</tbody><tfoot><tr><th scope="row" colSpan={2}>Total do dia</th><td className="numeric income">{numberLabel(ledger.netIncome)}</td><td className="numeric expenses">{numberLabel(ledger.expenses)}</td><td className={`numeric ${ledger.balance < 0 ? 'expenses' : ''}`}>{numberLabel(ledger.balance)}</td></tr></tfoot></table></div></div>
-    <RecurringExpenses/>
+    <RecurringExpenses onRegistered={() => syncRecurring(month)}/>
     <section className="monthly-section no-print" aria-label="Relatório mensal">
       <div className="closing-actions"><div className="field"><label htmlFor="report-month">MÊS / ANO DO RELATÓRIO</label><input id="report-month" type="month" value={month} onChange={e => { if (/^\d{4}-(0[1-9]|1[0-2])$/.test(e.target.value)) setMonth(e.target.value); }}/></div><button type="button" className="primary" onClick={() => printReport('month')} disabled={!!storageError}><Printer size={18}/> Imprimir Fechamento do Mês</button></div>
       <ClosingReport transactions={db.transactions} period={month} kind="month"/>

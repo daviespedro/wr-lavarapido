@@ -1,4 +1,3 @@
-import { localDate } from './format';
 import type { Database, RecurringExpense, RecurringLog, Transaction } from './types';
 
 export const EXPENSES_KEY = 'despesas_recorrentes';
@@ -28,29 +27,31 @@ export function validateLogs(value: unknown): RecurringLog[] {
   const message = 'Histórico de despesas recorrentes inválido.';
   if (!Array.isArray(value)) throw new Error(message);
   const logs = value.map(log => {
+    if (typeof log === 'string' && /^.+-(?:[1-9]|1[0-2])-\d{4}$/.test(log)) return log;
     const id_despesa = log?.id_despesa ?? log?.expenseId;
     const mes = log?.mes ?? log?.month;
     const ano = log?.ano ?? log?.year;
     if (!validId(id_despesa) || !positiveInteger(mes) || mes > 12 || !positiveInteger(ano)) throw new Error(message);
-    return { id_despesa, mes, ano };
+    return `${id_despesa}-${mes}-${ano}`;
   });
-  if (new Set(logs.map(log => JSON.stringify([String(log.id_despesa), log.mes, log.ano]))).size !== logs.length) throw new Error(message);
+  if (new Set(logs).size !== logs.length) throw new Error(message);
   return logs;
 }
 
 export function applyRecurring(db: Database, expenses: RecurringExpense[], logs: RecurringLog[], period: string, today: Date) {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period) || period.startsWith('0000-')) throw new Error('Selecione um mês e ano válidos.');
   const [ano, mes] = period.split('-').map(Number);
-  const currentDate = localDate(today);
-  const done = new Set(logs.filter(log => log.mes === mes && log.ano === ano).map(log => String(log.id_despesa)));
+
   const existing = new Set(db.transactions.map(transaction => transaction.id));
-  const transactions: Transaction[] = [];
+  const transactions: Transaction[] = [...db.transactions];
+  let hasChanges = false;
   const processed = [...logs];
 
   for (const despesa of expenses) {
+    const logKey = `${despesa.id}-${mes}-${ano}`;
     const date = `${period}-${String(despesa.diaVencimento).padStart(2, '0')}`;
     const due = new Date(`${date}T12:00:00`);
-    if (date > currentDate || due.getDate() !== despesa.diaVencimento || done.has(String(despesa.id))) continue;
+    if (due.getDate() !== despesa.diaVencimento || processed.includes(logKey)) continue;
 
     // Keep the same ID as older versions to recover a missing flag without a second charge.
     const id = `recurring:${ano}-${mes}:${despesa.id}`;
@@ -64,9 +65,9 @@ export function applyRecurring(db: Database, expenses: RecurringExpense[], logs:
         createdAt: today.toISOString(),
       });
     }
-    processed.push({ id_despesa: despesa.id, mes, ano });
+    processed.push(logKey);
+    hasChanges = true;
   }
 
-  const next = transactions.length ? { ...db, transactions: [...db.transactions, ...transactions] } : db;
-  return { db: next, logs: processed };
+  return { db: transactions.length !== db.transactions.length ? { ...db, transactions } : db, logs: processed, hasChanges };
 }

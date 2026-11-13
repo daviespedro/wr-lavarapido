@@ -135,16 +135,16 @@ test('recurring expenses use the selected period, exact description and due date
   const today = new Date(2026, 10, 13, 12);
   const empty = createEmptyDatabase();
   const current = applyRecurring(empty, expenses, [], '2026-11', today);
-  assert.deepEqual(current.logs, [{ id_despesa: 123, mes: 11, ano: 2026 }]);
+  assert.deepEqual(current.logs, ['123-11-2026', 'power-11-2026']);
   assert.deepEqual(current.db.transactions[0], {
     id: 'recurring:2026-11:123', date: '2026-11-08', description: 'água', type: 'saida', amount: 40000, createdAt: today.toISOString(),
   });
-  assert.deepEqual(applyRecurring(current.db, expenses, current.logs, '2026-11', today), current);
+  assert.deepEqual(applyRecurring(current.db, expenses, current.logs, '2026-11', today), { ...current, hasChanges: false });
   assert.deepEqual(applyRecurring(current.db, expenses, [], '2026-11', today), current);
 
   const past = applyRecurring(current.db, expenses, current.logs, '2025-11', today);
-  assert.deepEqual(past.db.transactions.map(t => t.date), ['2026-11-08', '2025-11-08', '2025-11-15']);
-  assert.deepEqual(applyRecurring(past.db, expenses, past.logs, '2026-12', today), past);
+  assert.deepEqual(past.db.transactions.map(t => t.date), ['2026-11-08', '2026-11-15', '2025-11-08', '2025-11-15']);
+  assert.equal(applyRecurring(past.db, expenses, past.logs, '2026-12', today).db.transactions.at(-1)?.date, '2026-12-31');
   const october = applyRecurring(past.db, expenses, past.logs, '2026-10', today);
   assert.equal(dailyLedger(october.db.transactions, '2026-10-31').balance, -1000);
 });
@@ -154,7 +154,7 @@ test('legacy expense fields and flags are migrated without charging a paid month
   const expenses = validateExpenses([{ id: 'rent', description: 'Aluguel', amount: 40000, diaVencimento: 8 }]);
   const logs = validateLogs([{ expenseId: 'rent', month: 11, year: 2026 }]);
   assert.deepEqual(expenses, [{ id: 'rent', descricao: 'Aluguel', valor: 40000, diaVencimento: 8 }]);
-  assert.deepEqual(logs, [{ id_despesa: 'rent', mes: 11, ano: 2026 }]);
+  assert.deepEqual(logs, ['rent-11-2026']);
   const db = createEmptyDatabase();
-  assert.deepEqual(applyRecurring(db, expenses, logs, '2026-11', new Date(2026, 10, 13)), { db, logs });
+  assert.deepEqual(applyRecurring(db, expenses, logs, '2026-11', new Date(2026, 10, 13)), { db, logs, hasChanges: false });
 });
