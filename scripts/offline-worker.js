@@ -15,7 +15,16 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
   if (request.mode === 'navigate' && ['', '/caixa', '/clientes', '/patio'].includes(url.pathname.replace(/\/$/, ''))) {
-    event.respondWith(caches.open(CACHE).then(cache => cache.match('/index.html')).then(response => response ?? fetch(request)));
+    event.respondWith((async () => {
+      try {
+        const response = await fetch(request);
+        if (response.ok || response.status < 500) return response;
+      } catch {
+        // The app shell was saved during installation.
+      }
+      const cache = await caches.open(CACHE);
+      return (await cache.match('/index.html')) ?? Response.error();
+    })());
   } else if (FILES.includes(url.pathname)) {
     event.respondWith(caches.open(CACHE).then(cache => cache.match(url.pathname, { ignoreVary: true })).then(response => response ?? fetch(request)));
   }
