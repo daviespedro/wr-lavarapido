@@ -1,4 +1,4 @@
-import type { Database, PaymentMethod, ReceptionInput, Transaction, Vehicle } from './types';
+import type { Client, Database, PaymentMethod, ReceptionInput, Transaction, Vehicle } from './types';
 import { digits, localDate } from './format';
 import { paymentMethods } from './types';
 import { services } from './data';
@@ -75,4 +75,12 @@ export function serviceHistory(db: Database) {
 }
 export function hasVehicleIncome(db: Database, vehicleId: string) {
   return db.transactions.some(transaction => transaction.vehicleId === vehicleId);
+}
+
+export function clientsByPlate(db: Database) {
+  const clients = new Map<string, Client>();
+  for (const { client } of db.completed ?? []) clients.set(client.plate, client);
+  for (const { client } of db.vehicles) clients.set(client.plate, client);
+  for (const client of db.clients) clients.set(client.plate, client);
+  return clients;
 }

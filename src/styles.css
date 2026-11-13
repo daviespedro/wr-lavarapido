@@ -59,6 +59,8 @@ h1 { font-size: 38px; line-height: 1.25; }
 .yard { margin-top: 42px; }
 .yard h2 { font-size: 26px; line-height: 1.25; letter-spacing: -.5px; }
 .muted { color: #97979f; }
+.yard-group { border-top: 1px solid #242426; padding-top: 16px; margin-top: 20px; }
+.yard-group h3 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
 .yard-count { font-size: 14px; margin-top: 4px; margin-bottom: 22px; }
 .vehicle-grid { gap: 20px; }
 .vehicle-card { position: relative; min-width: 0; overflow: hidden; padding: 21px; border: 1px solid #222225; border-radius: 24px; background: linear-gradient(140deg, #151517, #0b0b0c); color: #efeff1; transition: border-color .15s, transform .15s; }
@@ -164,7 +166,7 @@ tfoot td:last-child { color: #ff2e43; }
 @media (max-width: 900px) {
   .sidebar { position: static; width: 100%; height: auto; padding: 14px 20px 12px; border-right: 0; border-bottom: 1px solid #242426; display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; gap: 18px; }
   .brand { border-radius: 11px; margin: 0; }
-  .sidebar nav { flex-direction: row; gap: 5px; justify-content: flex-end; }
+  .sidebar nav { flex-direction: row; flex-wrap: wrap; gap: 5px; justify-content: flex-end; }
   .nav-link { padding: 0 12px; min-height: 41px; font-size: 14px; gap: 7px; }
   .shift { display: none; }
   .main, .cash-page { margin-left: 0; padding: 28px 20px 40px; }

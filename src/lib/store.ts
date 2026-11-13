@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { createEmptyDatabase } from './data';
 import type { Database, RecurringExpense } from './types';
 import { validateDatabase } from './database';
-import { applyRecurring, EXPENSES_KEY, LOGS_KEY, validateExpenses, validateLogs } from './recurring';
+import { applyRecurring, EXPENSES_KEY, LEGACY_EXPENSES_KEY, LOGS_KEY, validateExpenses, validateLogs } from './recurring';
 
 export const STORAGE_KEY = 'wr-lava-rapido:v2';
 const listeners = new Set<() => void>();
@@ -13,7 +13,7 @@ const read = (key: string, fallback: unknown) => {
   return raw === null ? fallback : JSON.parse(raw);
 };
 const readDatabase = () => validateDatabase(read(STORAGE_KEY, createEmptyDatabase()));
-const readExpenses = () => validateExpenses(read(EXPENSES_KEY, []));
+const readExpenses = () => validateExpenses(read(EXPENSES_KEY, null) ?? read(LEGACY_EXPENSES_KEY, []));
 const readLogs = () => validateLogs(read(LOGS_KEY, []));
 const save = (key: string, value: unknown) => localStorage.setItem(key, JSON.stringify(value));
 function refresh() {
@@ -28,7 +28,7 @@ function refresh() {
 }
 refresh();
 window.addEventListener('storage', event => {
-  if (event.key === null || [STORAGE_KEY, EXPENSES_KEY, LOGS_KEY].includes(event.key)) refresh();
+  if (event.key === null || [STORAGE_KEY, EXPENSES_KEY, LEGACY_EXPENSES_KEY, LOGS_KEY].includes(event.key)) refresh();
 });
 function subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; }
 export const useDatabase = () => useSyncExternalStore(subscribe, () => snapshot);
@@ -37,15 +37,21 @@ export function commitDatabase(update: (current: Database) => Database) {
   save(STORAGE_KEY, update(readDatabase()));
   refresh();
 }
-export function processRecurring(today = new Date()) {
+export function processRecurring(period: string, today = new Date()) {
   if (snapshot.error) throw new Error(snapshot.error);
-  const db = readDatabase(), logs = readLogs();
-  const next = applyRecurring(db, readExpenses(), logs, today);
+  const db = readDatabase();
+  const storedLogs = read(LOGS_KEY, []);
+  const logs = validateLogs(storedLogs);
+  const expenses = readExpenses();
+  const next = applyRecurring(db, expenses, logs, period, today);
+  if (localStorage.getItem(EXPENSES_KEY) === null && localStorage.getItem(LEGACY_EXPENSES_KEY) !== null) {
+    save(EXPENSES_KEY, expenses);
+  }
   if (next.db !== db) save(STORAGE_KEY, next.db);
   try {
-    if (next.logs.length !== logs.length) save(LOGS_KEY, next.logs);
+    if (JSON.stringify(storedLogs) !== JSON.stringify(next.logs)) save(LOGS_KEY, next.logs);
   } finally {
-    if (next.db !== db || next.logs.length !== logs.length) refresh();
+    if (next.db !== db) refresh();
   }
 }
 export function updateRecurring(update: (expenses: RecurringExpense[]) => RecurringExpense[]) {
@@ -67,6 +73,7 @@ export function parseBackup(value: unknown): StorageEntries {
   if (!storage || typeof storage !== 'object' || Array.isArray(storage) || !Object.values(storage).every(v => typeof v === 'string')) throw new Error('Backup inválido.');
   const entries = storage as StorageEntries;
   if (Object.hasOwn(entries, STORAGE_KEY)) validateDatabase(JSON.parse(entries[STORAGE_KEY]));
+  if (Object.hasOwn(entries, LEGACY_EXPENSES_KEY)) validateExpenses(JSON.parse(entries[LEGACY_EXPENSES_KEY]));
   if (Object.hasOwn(entries, EXPENSES_KEY)) validateExpenses(JSON.parse(entries[EXPENSES_KEY]));
   if (Object.hasOwn(entries, LOGS_KEY)) validateLogs(JSON.parse(entries[LOGS_KEY]));
   return entries;

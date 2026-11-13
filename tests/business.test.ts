@@ -125,20 +125,36 @@ test('monthly closing isolates month and year, includes boundary days and orders
   for (const month of ['', '2026', '2026-00', '2026-13', '2026-1', '2026-11-01']) assert.throws(() => monthlyLedger(transactions, month), /mês e ano válidos/);
 });
 
-test('recurring expenses post once per month and recover a missing flag without duplication', async () => {
+test('recurring expenses use the selected period, exact description and due date', async () => {
   const { applyRecurring } = await import('../src/lib/recurring');
   const expenses = [
-    { id: 'rent', description: 'Aluguel', amount: 40000, dia_vencimento: 8 },
-    { id: 'power', description: 'Energia', amount: 2000, dia_vencimento: 15 },
+    { id: 123, descricao: 'água', valor: 40000, dia_vencimento: 8 },
+    { id: 'power', descricao: 'luz', valor: 2000, dia_vencimento: 15 },
+    { id: 'end', descricao: 'Internet', valor: 1000, dia_vencimento: 31 },
   ];
-  const first = applyRecurring(createEmptyDatabase(), expenses, [], new Date(2026, 10, 13, 12));
-  assert.deepEqual(first.logs, [{ expenseId: 'rent', month: 11, year: 2026 }]);
-  assert.equal(dailyLedger(first.db.transactions, '2026-11-13').balance, -40000);
-  const second = applyRecurring(first.db, expenses, first.logs, new Date(2026, 10, 13, 13));
-  assert.deepEqual(second, first);
-  const recovery = applyRecurring(first.db, expenses, [], new Date(2026, 10, 13, 14));
-  assert.deepEqual(recovery, first);
-  const nextYear = applyRecurring(first.db, expenses, first.logs, new Date(2027, 10, 15, 12));
-  assert.equal(nextYear.db.transactions.length, 3);
-  assert.equal(dailyLedger(nextYear.db.transactions, '2027-11-15').balance, -42000);
+  const today = new Date(2026, 10, 13, 12);
+  const empty = createEmptyDatabase();
+  const current = applyRecurring(empty, expenses, [], '2026-11', today);
+  assert.deepEqual(current.logs, [{ id_despesa: 123, mes: 11, ano: 2026 }]);
+  assert.deepEqual(current.db.transactions[0], {
+    id: 'recurring:2026-11:123', date: '2026-11-08', description: 'água', type: 'saida', amount: 40000, createdAt: today.toISOString(),
+  });
+  assert.deepEqual(applyRecurring(current.db, expenses, current.logs, '2026-11', today), current);
+  assert.deepEqual(applyRecurring(current.db, expenses, [], '2026-11', today), current);
+
+  const past = applyRecurring(current.db, expenses, current.logs, '2025-11', today);
+  assert.deepEqual(past.db.transactions.map(t => t.date), ['2026-11-08', '2025-11-08', '2025-11-15']);
+  assert.deepEqual(applyRecurring(past.db, expenses, past.logs, '2026-12', today), past);
+  const october = applyRecurring(past.db, expenses, past.logs, '2026-10', today);
+  assert.equal(dailyLedger(october.db.transactions, '2026-10-31').balance, -1000);
+});
+
+test('legacy expense fields and flags are migrated without charging a paid month again', async () => {
+  const { applyRecurring, validateExpenses, validateLogs } = await import('../src/lib/recurring');
+  const expenses = validateExpenses([{ id: 'rent', description: 'Aluguel', amount: 40000, dia_vencimento: 8 }]);
+  const logs = validateLogs([{ expenseId: 'rent', month: 11, year: 2026 }]);
+  assert.deepEqual(expenses, [{ id: 'rent', descricao: 'Aluguel', valor: 40000, dia_vencimento: 8 }]);
+  assert.deepEqual(logs, [{ id_despesa: 'rent', mes: 11, ano: 2026 }]);
+  const db = createEmptyDatabase();
+  assert.deepEqual(applyRecurring(db, expenses, logs, '2026-11', new Date(2026, 10, 13)), { db, logs });
 });

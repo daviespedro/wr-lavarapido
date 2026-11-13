@@ -9,11 +9,10 @@ import { downloadBackup } from '../lib/backup';
 import type { Transaction } from '../lib/types';
 import { addTransaction, dailyLedger } from '../lib/business';
 import { currency, localDate, numberLabel, dateLabel, parseMoney } from '../lib/format';
-export function Cash() {
+export function Cash({ month, setMonth }: { month: string; setMonth: (month: string) => void }) {
   const { db, error: storageError } = useDatabase();
   const [date, setDate] = useState(localDate());
   const [reportDay, setReportDay] = useState(localDate());
-  const [month, setMonth] = useState(() => localDate().slice(0, 7));
   const [reportKind, setReportKind] = useState<'day' | 'month'>('day');
   const [reportTransactions, setReportTransactions] = useState<Transaction[] | null>(null);
   useEffect(() => {
