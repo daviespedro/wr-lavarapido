@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createEmptyDatabase } from '../src/lib/data';
 import { registerVehicle, addTransaction, dailyLedger, finishVehicle } from '../src/lib/business';
-import { localDate, parseMoney } from '../src/lib/format';
+import { parseMoney } from '../src/lib/format';
 const now = '2026-11-08T16:00:00.000Z';
 const day = '2026-11-08';
 const input = { phone: '(11) 98765-4321', name: 'Cliente', model: 'Veículo', plate: 'bra-2e19', serviceId: 'lavagem', amount: 12345 };
@@ -10,7 +10,7 @@ const input = { phone: '(11) 98765-4321', name: 'Cliente', model: 'Veículo', pl
 test('first use starts with no clients, vehicles or transactions and zero balances', () => {
   const db = createEmptyDatabase();
   assert.deepEqual(db, { version: 2, clients: [], vehicles: [], transactions: [] });
-  assert.deepEqual(dailyLedger(db.transactions, day), { rows: [], income: 0, expenses: 0, balance: 0 });
+  assert.deepEqual(dailyLedger(db.transactions, day), { rows: [], income: 0, expenses: 0, fees: 0, netIncome: 0, balance: 0 });
 });
 
 test('customer history normalizes data, increments visits and rejects duplicate vehicles', () => {
@@ -23,11 +23,7 @@ test('customer history normalizes data, increments visits and rejects duplicate 
   assert.equal(next.vehicles[0].client.plate, 'BRA2E19');
   assert.equal(next.vehicles[0].status, 'Aguardando');
   assert.equal(next.vehicles[0].amount, 12345);
-  assert.equal(next.transactions.length, 1);
-  assert.equal(next.transactions[0].description, 'Lavagem Completa — Veículo (BRA2E19)');
-  assert.equal(next.transactions[0].vehicleId, 'vehicle-1');
-  assert.equal(next.transactions[0].type, 'entrada');
-  assert.equal(dailyLedger(next.transactions, localDate(new Date(now))).income, 12345);
+  assert.equal(next.transactions.length, 0);
   assert.equal(db.vehicles.length, 0);
   assert.throws(() => registerVehicle(next, input, 'v2', now), /já está/);
 });
@@ -63,27 +59,33 @@ test('daily ledger orders movements and isolates each date', () => {
   assert.equal(dailyLedger(db.transactions, '2030-01-01').balance, -123);
 });
 
-test('checkout preserves income already recorded at registration', () => {
-  const registered = registerVehicle(createEmptyDatabase(), input, 'vehicle-1', now);
-  const db = JSON.parse(JSON.stringify(registered));
-  assert.equal(db.vehicles[0].amount, 12345);
-  assert.throws(() => finishVehicle(db, 'vehicle-1', 'payment', now, day), /pronto/);
-  db.vehicles[0].status = 'Pronto';
-  const next = finishVehicle(db, 'vehicle-1', 'payment-1', now, day);
-  assert.equal(next.vehicles.length, 0);
-  assert.equal(next.transactions.length, 1);
-  assert.equal(next.transactions[0].amount, 12345);
-  assert.deepEqual(next.transactions, registered.transactions);
-  assert.throws(() => finishVehicle(next, 'vehicle-1', 'payment-2', now, day), /concluído/);
+test('checkout records all four payment methods and deducts 3% only for cards', () => {
+  const db = registerVehicle(createEmptyDatabase(), input, 'vehicle-1', now);
+  assert.throws(() => finishVehicle(db, 'vehicle-1', 'payment', now, day, 'PIX'), /finalizado/);
+  db.vehicles[0].status = 'Finalizado';
+  for (const method of ['Dinheiro', 'PIX', 'Crédito', 'Débito'] as const) {
+    const next = finishVehicle(db, 'vehicle-1', 'payment', now, day, method);
+    const fees = method === 'Crédito' || method === 'Débito' ? 370 : 0;
+    const ledger = dailyLedger(next.transactions, day);
+    assert.equal(ledger.income, 12345);
+    assert.equal(ledger.fees, fees);
+    assert.equal(ledger.netIncome, 12345 - fees);
+    assert.equal(ledger.rows[0].balance, 12345 - fees);
+    assert.equal(next.transactions[0].payment, method);
+    assert.equal(next.completed?.[0].client.plate, 'BRA2E19');
+    assert.equal(next.vehicles.length, 0);
+    assert.throws(() => finishVehicle(next, 'vehicle-1', 'payment-2', now, day, method), /concluído/);
+  }
 });
 
-test('checkout records income for an older vehicle without a linked transaction', () => {
-  const registered = registerVehicle(createEmptyDatabase(), input, 'old-vehicle', now);
-  const db = { ...registered, transactions: [] };
-  db.vehicles[0].status = 'Pronto';
-  const next = finishVehicle(db, 'old-vehicle', 'payment', now, day);
-  assert.equal(next.vehicles.length, 0);
-  assert.equal(dailyLedger(next.transactions, day).income, 12345);
+test('legacy checkout reuses the original transaction and preserves its date', () => {
+  const db = registerVehicle(createEmptyDatabase(), input, 'old-vehicle', now);
+  db.vehicles[0].status = 'Finalizado';
+  db.transactions.push({ id: 'legacy', date: '2026-11-07', description: 'Lavagem Completa — Veículo (BRA2E19)', type: 'entrada', amount: 12345, createdAt: now, vehicleId: 'old-vehicle' });
+  const next = finishVehicle(db, 'old-vehicle', 'payment', now, day, 'Débito');
+  assert.equal(next.transactions.length, 1);
+  assert.equal(next.transactions[0].id, 'legacy');
+  assert.equal(dailyLedger(next.transactions, '2026-11-07').balance, 11975);
 });
 
 test('backup validation accepts saved custom values and rejects damaged financial data', async () => {
@@ -117,8 +119,26 @@ test('monthly closing isolates month and year, includes boundary days and orders
   assert.equal(ledger.expenses, 2500);
   assert.equal(ledger.balance, 19845);
   assert.deepEqual(transactions.map(t => t.id), originalOrder);
-  assert.deepEqual(monthlyLedger(transactions, '2027-01'), { rows: [], income: 0, expenses: 0, balance: 0 });
+  assert.deepEqual(monthlyLedger(transactions, '2027-01'), { rows: [], income: 0, expenses: 0, fees: 0, netIncome: 0, balance: 0 });
   assert.equal(monthlyLedger([movement('leap', '2024-02-29', -123)], '2024-02').balance, -123);
   assert.equal(monthlyLedger([movement('year-end', '2026-12-31', 123), movement('new-year', '2027-01-01', 999)], '2026-12').balance, 123);
   for (const month of ['', '2026', '2026-00', '2026-13', '2026-1', '2026-11-01']) assert.throws(() => monthlyLedger(transactions, month), /mês e ano válidos/);
+});
+
+test('recurring expenses post once per month and recover a missing flag without duplication', async () => {
+  const { applyRecurring } = await import('../src/lib/recurring');
+  const expenses = [
+    { id: 'rent', description: 'Aluguel', amount: 40000, dia_vencimento: 8 },
+    { id: 'power', description: 'Energia', amount: 2000, dia_vencimento: 15 },
+  ];
+  const first = applyRecurring(createEmptyDatabase(), expenses, [], new Date(2026, 10, 13, 12));
+  assert.deepEqual(first.logs, [{ expenseId: 'rent', month: 11, year: 2026 }]);
+  assert.equal(dailyLedger(first.db.transactions, '2026-11-13').balance, -40000);
+  const second = applyRecurring(first.db, expenses, first.logs, new Date(2026, 10, 13, 13));
+  assert.deepEqual(second, first);
+  const recovery = applyRecurring(first.db, expenses, [], new Date(2026, 10, 13, 14));
+  assert.deepEqual(recovery, first);
+  const nextYear = applyRecurring(first.db, expenses, first.logs, new Date(2027, 10, 15, 12));
+  assert.equal(nextYear.db.transactions.length, 3);
+  assert.equal(dailyLedger(nextYear.db.transactions, '2027-11-15').balance, -42000);
 });

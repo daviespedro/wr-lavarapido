@@ -262,3 +262,13 @@ tfoot td:last-child { color: #ff2e43; }
   .print-report tr { break-inside: avoid; }
   .report-note { margin-top: 18pt; font-size: 9pt; }
 }
+
+.recurring-form { display: grid; grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)) auto; gap: .75rem; align-items: end; margin-top: 1rem; }
+.recurring-form input { width: 100%; }
+.record-list { list-style: none; padding: 0; margin-top: 1rem; }
+.record-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; padding: .5rem 0; border-top: 1px solid currentColor; }
+.whatsapp-link { display: inline-flex; }
+.payment-field { margin: 1rem 0; }
+.cash-fees { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; margin-bottom: 1rem; }
+.backup-footer h2 { margin-bottom: .5rem; }
+@media (max-width: 700px) { .recurring-form { grid-template-columns: 1fr; } }

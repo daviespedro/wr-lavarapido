@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { ArrowUpRight, ArrowDownRight, Landmark, Plus, Printer } from 'lucide-react';
+import { RecurringExpenses } from '../components/RecurringExpenses';
 import { ClosingReport } from '../components/ClosingReport';
 import { PageHeading, Notice } from '../components/Layout';
-import { useDatabase, commitDatabase, exportDatabase } from '../lib/store';
+import { useDatabase, commitDatabase, exportBackup, exportDatabase } from '../lib/store';
 import { downloadBackup } from '../lib/backup';
 import type { Transaction } from '../lib/types';
 import { addTransaction, dailyLedger } from '../lib/business';
-import { localDate, numberLabel, dateLabel, parseMoney } from '../lib/format';
+import { currency, localDate, numberLabel, dateLabel, parseMoney } from '../lib/format';
 export function Cash() {
   const { db, error: storageError } = useDatabase();
   const [date, setDate] = useState(localDate());
@@ -26,7 +27,7 @@ export function Cash() {
     try {
       // Read once so the backup and the printed report share the latest saved data.
       const current = exportDatabase();
-      if (kind === 'day') downloadBackup(current);
+      if (kind === 'day') downloadBackup(exportBackup());
       flushSync(() => {
         setReportDay(localDate()); setReportKind(kind); setReportTransactions(current.transactions);
         setNotice(kind === 'day' ? { message: 'Download do backup completo iniciado. Confira o arquivo na pasta de downloads.' } : null);
@@ -54,8 +55,9 @@ export function Cash() {
     <div className="closing-actions no-print"><p className="muted">O fechamento diário baixa um backup completo antes de abrir a impressão.</p><button type="button" className="primary" onClick={() => printReport('day')} disabled={!!storageError}><Printer size={18}/> Imprimir Fechamento do Dia</button></div>
     {notice && <Notice {...notice} onClose={() => setNotice(null)}/>}
     <div className="summary-grid grid grid-cols-1 sm:grid-cols-3">
-      {[{ label: 'Total de Entradas', value: ledger.income, className: 'income', Icon: ArrowUpRight }, { label: 'Total de Saídas', value: ledger.expenses, className: 'expenses', Icon: ArrowDownRight }, { label: 'Saldo Atual', value: ledger.balance, className: 'balance', Icon: Landmark }].map(({ label, value, className, Icon }) => <section className={`summary-card panel ${className}`} key={label}><div className="flex items-center justify-between"><h2>{label}</h2><span className="summary-icon"><Icon size={22}/></span></div><p className="summary-value"><span>R$</span>{numberLabel(value)}</p></section>)}
+      {[{ label: 'Total Bruto de Entradas', value: ledger.income, className: 'income', Icon: ArrowUpRight }, { label: 'Total de Saídas', value: ledger.expenses, className: 'expenses', Icon: ArrowDownRight }, { label: 'Saldo Líquido', value: ledger.balance, className: 'balance', Icon: Landmark }].map(({ label, value, className, Icon }) => <section className={`summary-card panel ${className}`} key={label}><div className="flex items-center justify-between"><h2>{label}</h2><span className="summary-icon"><Icon size={22}/></span></div><p className="summary-value"><span>R$</span>{numberLabel(value)}</p></section>)}
     </div>
+    <p className="cash-fees"><span>Taxa de Maquininha: <strong>-{currency(ledger.fees)}</strong></span><span>Total Líquido de Entradas: <strong>{currency(ledger.netIncome)}</strong></span></p>
     <section className="transaction-panel panel" aria-labelledby="transaction-title"><h2 id="transaction-title">Nova transação</h2><form className="transaction-form" onSubmit={submit}>
       <div className="date-input-wrap"><label className="sr-only" htmlFor="transaction-date">Dia do caixa</label><input id="transaction-date" type="date" value={date} onChange={e => { if (e.target.value && /^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) setDate(e.target.value); }} required/></div>
       <div><label className="sr-only" htmlFor="description">Descrição</label><input id="description" placeholder="Descrição" maxLength={180} value={description} onChange={e => setDescription(e.target.value)} required/></div>
@@ -64,6 +66,7 @@ export function Cash() {
       <button className="primary" disabled={!!storageError}><Plus size={18}/> LANÇAR</button>
     </form></section>
     <div className="ledger-panel panel"><div className="table-scroll"><table><caption className="sr-only">Movimentações de {dateLabel(date)} com saldo acumulado em ordem cronológica</caption><thead><tr><th scope="col">DIA</th><th scope="col">DESCRIÇÃO</th><th scope="col" className="numeric">ENTRADAS (R$)</th><th scope="col" className="numeric">SAÍDAS (R$)</th><th scope="col" className="numeric">SALDO (R$)</th></tr></thead><tbody>{ledger.rows.map(row => <tr key={row.id}><td className="muted">{dateLabel(row.date)}</td><td>{row.description}</td><td className="numeric income">{row.type === 'entrada' ? numberLabel(row.amount) : '–'}</td><td className="numeric expenses">{row.type === 'saida' ? numberLabel(row.amount) : '–'}</td><td className="numeric row-balance">{numberLabel(row.balance)}</td></tr>)}{!ledger.rows.length && <tr><td colSpan={5} className="empty-ledger">Nenhuma transação neste dia. Faça o primeiro lançamento acima.</td></tr>}</tbody><tfoot><tr><th scope="row" colSpan={2}>Total do dia</th><td className="numeric income">{numberLabel(ledger.income)}</td><td className="numeric expenses">{numberLabel(ledger.expenses)}</td><td className={`numeric ${ledger.balance < 0 ? 'expenses' : ''}`}>{numberLabel(ledger.balance)}</td></tr></tfoot></table></div></div>
+    <RecurringExpenses/>
     <section className="monthly-section no-print" aria-label="Relatório mensal">
       <div className="closing-actions"><div className="field"><label htmlFor="report-month">MÊS / ANO DO RELATÓRIO</label><input id="report-month" type="month" value={month} onChange={e => { if (/^\d{4}-(0[1-9]|1[0-2])$/.test(e.target.value)) setMonth(e.target.value); }}/></div><button type="button" className="primary" onClick={() => printReport('month')} disabled={!!storageError}><Printer size={18}/> Imprimir Fechamento do Mês</button></div>
       <ClosingReport transactions={db.transactions} period={month} kind="month"/>
