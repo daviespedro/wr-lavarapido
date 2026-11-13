@@ -17,15 +17,15 @@ export function VehicleDialog({ vehicle, incomeRecorded, onClose, onStatus, onFi
     <h2 id="dialog-title">{vehicle.client.model}</h2><p className="dialog-plate">{vehicle.client.plate}</p>
     <dl><div><dt>Cliente</dt><dd>{vehicle.client.name}</dd></div><div><dt>Telefone</dt><dd><WhatsAppLink phone={vehicle.client.phone}/></dd></div><div><dt>Serviço</dt><dd>{service.name}</dd></div><div><dt>Valor</dt><dd>{currency(vehicle.amount)}</dd></div></dl>
     <p className="muted mb-4">Status atual: {vehicle.status}</p>
-    {vehicle.status !== 'Finalizado' ? <button className="primary w-full" onClick={() => onStatus(vehicle.status === 'Aguardando' ? 'Em lavagem' : 'Finalizado')}>{vehicle.status === 'Aguardando' ? <ArrowRight size={18}/> : <Check size={18}/>} {vehicle.status === 'Aguardando' ? 'Iniciar lavagem' : 'Marcar como finalizado'}</button> : <form onSubmit={event => { event.preventDefault(); if (payment) onFinish(payment); }}>
-      <a className="secondary whatsapp-link" href={completionUrl(vehicle.client)} target="_blank" rel="noopener noreferrer">Abrir aviso de retirada no WhatsApp</a>
+    {vehicle.status !== 'Finalizado' ? <button className="primary w-full" onClick={() => onStatus(vehicle.status === 'Aguardando' ? 'Em lavagem' : 'Finalizado')}>{vehicle.status === 'Aguardando' ? <ArrowRight size={18}/> : <Check size={18}/>} {vehicle.status === 'Aguardando' ? 'Iniciar lavagem' : 'Marcar como finalizado'}</button> : <form className="checkout-form flex flex-col gap-4 w-full" onSubmit={event => { event.preventDefault(); if (payment) onFinish(payment); }}>
       {incomeRecorded && <p className="muted">O valor já está no caixa. A forma de pagamento será aplicada ao lançamento original.</p>}
       <label className="field payment-field">Forma de pagamento
-        <select required value={payment} onChange={event => setPayment(event.target.value as PaymentMethod | '')}>
+        <select className="w-full" required value={payment} onChange={event => setPayment(event.target.value as PaymentMethod | '')}>
           <option value="">Selecione</option>{paymentMethods.map(method => <option key={method}>{method}</option>)}
         </select>
       </label>
       {(payment === 'Crédito' || payment === 'Débito') && <p className="cash-fees">Taxa de Maquininha: -{currency(fee)} · Líquido: {currency(vehicle.amount - fee)}</p>}
+      <a className="secondary whatsapp-link w-full" href={completionUrl(vehicle.client)} target="_blank" rel="noopener noreferrer">Abrir aviso de retirada no WhatsApp</a>
       <button className="primary w-full" disabled={!payment}><Wallet size={18}/> Fechar atendimento</button>
     </form>}
   </div></dialog>;

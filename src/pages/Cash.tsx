@@ -4,13 +4,19 @@ import { ArrowUpRight, ArrowDownRight, Landmark, Plus, Printer } from 'lucide-re
 import { RecurringExpenses } from '../components/RecurringExpenses';
 import { ClosingReport } from '../components/ClosingReport';
 import { PageHeading, Notice } from '../components/Layout';
-import { useDatabase, commitDatabase, exportBackup, exportDatabase } from '../lib/store';
+import { processRecurring, useDatabase, commitDatabase, exportBackup, exportDatabase } from '../lib/store';
 import { downloadBackup } from '../lib/backup';
 import type { Transaction } from '../lib/types';
-import { addTransaction, dailyLedger } from '../lib/business';
+import { addTransaction, dailyLedger, cardFee } from '../lib/business';
 import { currency, localDate, numberLabel, dateLabel, parseMoney } from '../lib/format';
 export function Cash({ month, setMonth }: { month: string; setMonth: (month: string) => void }) {
-  const { db, error: storageError } = useDatabase();
+  const { db, expenses, error: storageError } = useDatabase();
+  const [recurringError, setRecurringError] = useState('');
+  useEffect(() => {
+    if (storageError) return;
+    try { processRecurring(month); setRecurringError(''); }
+    catch (error) { setRecurringError((error as Error).message); }
+  }, [month, db, expenses, storageError]);
   const [date, setDate] = useState(localDate());
   const [reportDay, setReportDay] = useState(localDate());
   const [reportKind, setReportKind] = useState<'day' | 'month'>('day');
@@ -52,6 +58,7 @@ export function Cash({ month, setMonth }: { month: string; setMonth: (month: str
   return <>
     <PageHeading section="CAIXA" title="Fechamento diário">{fullDate.charAt(0).toUpperCase() + fullDate.slice(1)}</PageHeading>
     <div className="closing-actions no-print"><p className="muted">O fechamento diário baixa um backup completo antes de abrir a impressão.</p><button type="button" className="primary" onClick={() => printReport('day')} disabled={!!storageError}><Printer size={18}/> Imprimir Fechamento do Dia</button></div>
+    {recurringError && <div role="alert" className="notice error">{recurringError}</div>}
     {notice && <Notice {...notice} onClose={() => setNotice(null)}/>}
     <div className="summary-grid grid grid-cols-1 sm:grid-cols-3">
       {[{ label: 'Total Bruto de Entradas', value: ledger.income, className: 'income', Icon: ArrowUpRight }, { label: 'Total de Saídas', value: ledger.expenses, className: 'expenses', Icon: ArrowDownRight }, { label: 'Saldo Líquido', value: ledger.balance, className: 'balance', Icon: Landmark }].map(({ label, value, className, Icon }) => <section className={`summary-card panel ${className}`} key={label}><div className="flex items-center justify-between"><h2>{label}</h2><span className="summary-icon"><Icon size={22}/></span></div><p className="summary-value"><span>R$</span>{numberLabel(value)}</p></section>)}
@@ -64,7 +71,7 @@ export function Cash({ month, setMonth }: { month: string; setMonth: (month: str
       <div><label className="sr-only" htmlFor="amount">Valor em reais</label><input id="amount" className="money-input" inputMode="decimal" placeholder="R$ 0,00" value={amount} onChange={e => setAmount(e.target.value)} required/></div>
       <button className="primary" disabled={!!storageError}><Plus size={18}/> LANÇAR</button>
     </form></section>
-    <div className="ledger-panel panel"><div className="table-scroll"><table><caption className="sr-only">Movimentações de {dateLabel(date)} com saldo acumulado em ordem cronológica</caption><thead><tr><th scope="col">DIA</th><th scope="col">DESCRIÇÃO</th><th scope="col" className="numeric">ENTRADAS (R$)</th><th scope="col" className="numeric">SAÍDAS (R$)</th><th scope="col" className="numeric">SALDO (R$)</th></tr></thead><tbody>{ledger.rows.map(row => <tr key={row.id}><td className="muted">{dateLabel(row.date)}</td><td>{row.description}</td><td className="numeric income">{row.type === 'entrada' ? numberLabel(row.amount) : '–'}</td><td className="numeric expenses">{row.type === 'saida' ? numberLabel(row.amount) : '–'}</td><td className="numeric row-balance">{numberLabel(row.balance)}</td></tr>)}{!ledger.rows.length && <tr><td colSpan={5} className="empty-ledger">Nenhuma transação neste dia. Faça o primeiro lançamento acima.</td></tr>}</tbody><tfoot><tr><th scope="row" colSpan={2}>Total do dia</th><td className="numeric income">{numberLabel(ledger.income)}</td><td className="numeric expenses">{numberLabel(ledger.expenses)}</td><td className={`numeric ${ledger.balance < 0 ? 'expenses' : ''}`}>{numberLabel(ledger.balance)}</td></tr></tfoot></table></div></div>
+    <div className="ledger-panel panel"><div className="table-scroll"><table><caption className="sr-only">Movimentações de {dateLabel(date)} com saldo acumulado em ordem cronológica</caption><thead><tr><th scope="col">DIA</th><th scope="col">DESCRIÇÃO</th><th scope="col" className="numeric">ENTRADAS LÍQUIDAS (R$)</th><th scope="col" className="numeric">SAÍDAS (R$)</th><th scope="col" className="numeric">SALDO (R$)</th></tr></thead><tbody>{ledger.rows.map(row => <tr key={row.id}><td className="muted">{dateLabel(row.date)}</td><td>{row.description}</td><td className="numeric income">{row.type === 'entrada' ? numberLabel(row.amount - cardFee(row.amount, row.payment)) : '–'}</td><td className="numeric expenses">{row.type === 'saida' ? numberLabel(row.amount) : '–'}</td><td className="numeric row-balance">{numberLabel(row.balance)}</td></tr>)}{!ledger.rows.length && <tr><td colSpan={5} className="empty-ledger">Nenhuma transação neste dia. Faça o primeiro lançamento acima.</td></tr>}</tbody><tfoot><tr><th scope="row" colSpan={2}>Total do dia</th><td className="numeric income">{numberLabel(ledger.netIncome)}</td><td className="numeric expenses">{numberLabel(ledger.expenses)}</td><td className={`numeric ${ledger.balance < 0 ? 'expenses' : ''}`}>{numberLabel(ledger.balance)}</td></tr></tfoot></table></div></div>
     <RecurringExpenses/>
     <section className="monthly-section no-print" aria-label="Relatório mensal">
       <div className="closing-actions"><div className="field"><label htmlFor="report-month">MÊS / ANO DO RELATÓRIO</label><input id="report-month" type="month" value={month} onChange={e => { if (/^\d{4}-(0[1-9]|1[0-2])$/.test(e.target.value)) setMonth(e.target.value); }}/></div><button type="button" className="primary" onClick={() => printReport('month')} disabled={!!storageError}><Printer size={18}/> Imprimir Fechamento do Mês</button></div>

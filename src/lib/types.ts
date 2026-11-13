@@ -7,5 +7,5 @@ export interface ReceptionInput { phone: string; name: string; model: string; pl
 export const paymentMethods = ['Dinheiro', 'PIX', 'Crédito', 'Débito'] as const;
 export type PaymentMethod = typeof paymentMethods[number];
 export interface CompletedService extends Vehicle { completedAt: string }
-export interface RecurringExpense { id: string | number; descricao: string; valor: number; dia_vencimento: number }
+export interface RecurringExpense { id: string | number; descricao: string; valor: number; diaVencimento: number }
 export interface RecurringLog { id_despesa: string | number; mes: number; ano: number }

@@ -12,12 +12,13 @@ export function validateExpenses(value: unknown): RecurringExpense[] {
   const message = 'Despesas recorrentes inválidas. Informe descrição, valor positivo e dia de 1 a 31.';
   if (!Array.isArray(value)) throw new Error(message);
   const expenses = value.map(expense => {
-    const { id, dia_vencimento } = expense ?? {};
+    const { id } = expense ?? {};
+    const diaVencimento = expense?.diaVencimento ?? expense?.dia_vencimento;
     const descricao = expense?.descricao ?? expense?.description;
     const valor = expense?.valor ?? expense?.amount;
     if (!validId(id) || typeof descricao !== 'string' || !descricao.trim() || !positiveInteger(valor)
-      || !positiveInteger(dia_vencimento) || dia_vencimento > 31) throw new Error(message);
-    return { id, descricao, valor, dia_vencimento };
+      || !positiveInteger(diaVencimento) || diaVencimento > 31) throw new Error(message);
+    return { id, descricao, valor, diaVencimento };
   });
   if (new Set(expenses.map(expense => String(expense.id))).size !== expenses.length) throw new Error(message);
   return expenses;
@@ -47,9 +48,9 @@ export function applyRecurring(db: Database, expenses: RecurringExpense[], logs:
   const processed = [...logs];
 
   for (const despesa of expenses) {
-    const date = `${period}-${String(despesa.dia_vencimento).padStart(2, '0')}`;
+    const date = `${period}-${String(despesa.diaVencimento).padStart(2, '0')}`;
     const due = new Date(`${date}T12:00:00`);
-    if (date > currentDate || due.getDate() !== despesa.dia_vencimento || done.has(String(despesa.id))) continue;
+    if (date > currentDate || due.getDate() !== despesa.diaVencimento || done.has(String(despesa.id))) continue;
 
     // Keep the same ID as older versions to recover a missing flag without a second charge.
     const id = `recurring:${ano}-${mes}:${despesa.id}`;

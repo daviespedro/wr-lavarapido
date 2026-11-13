@@ -128,9 +128,9 @@ test('monthly closing isolates month and year, includes boundary days and orders
 test('recurring expenses use the selected period, exact description and due date', async () => {
   const { applyRecurring } = await import('../src/lib/recurring');
   const expenses = [
-    { id: 123, descricao: 'água', valor: 40000, dia_vencimento: 8 },
-    { id: 'power', descricao: 'luz', valor: 2000, dia_vencimento: 15 },
-    { id: 'end', descricao: 'Internet', valor: 1000, dia_vencimento: 31 },
+    { id: 123, descricao: 'água', valor: 40000, diaVencimento: 8 },
+    { id: 'power', descricao: 'luz', valor: 2000, diaVencimento: 15 },
+    { id: 'end', descricao: 'Internet', valor: 1000, diaVencimento: 31 },
   ];
   const today = new Date(2026, 10, 13, 12);
   const empty = createEmptyDatabase();
@@ -151,9 +151,9 @@ test('recurring expenses use the selected period, exact description and due date
 
 test('legacy expense fields and flags are migrated without charging a paid month again', async () => {
   const { applyRecurring, validateExpenses, validateLogs } = await import('../src/lib/recurring');
-  const expenses = validateExpenses([{ id: 'rent', description: 'Aluguel', amount: 40000, dia_vencimento: 8 }]);
+  const expenses = validateExpenses([{ id: 'rent', description: 'Aluguel', amount: 40000, diaVencimento: 8 }]);
   const logs = validateLogs([{ expenseId: 'rent', month: 11, year: 2026 }]);
-  assert.deepEqual(expenses, [{ id: 'rent', descricao: 'Aluguel', valor: 40000, dia_vencimento: 8 }]);
+  assert.deepEqual(expenses, [{ id: 'rent', descricao: 'Aluguel', valor: 40000, diaVencimento: 8 }]);
   assert.deepEqual(logs, [{ id_despesa: 'rent', mes: 11, ano: 2026 }]);
   const db = createEmptyDatabase();
   assert.deepEqual(applyRecurring(db, expenses, logs, '2026-11', new Date(2026, 10, 13)), { db, logs });

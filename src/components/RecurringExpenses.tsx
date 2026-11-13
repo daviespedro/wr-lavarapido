@@ -12,7 +12,7 @@ export function RecurringExpenses() {
     try {
       updateRecurring(current => [...current, {
         id: crypto.randomUUID(), descricao: String(data.get('description')).trim(),
-        valor: parseMoney(String(data.get('amount'))), dia_vencimento: Number(data.get('day')),
+        valor: parseMoney(String(data.get('amount'))), diaVencimento: Number(data.get('day')),
       }]);
       form.reset();
       setNotice({ message: 'Despesa recorrente cadastrada.' });
@@ -33,7 +33,7 @@ export function RecurringExpenses() {
       <button className="primary" disabled={!!error}>Cadastrar despesa</button>
     </form>
     {expenses.length > 0 && <ul className="record-list">{expenses.map(expense => <li key={expense.id}>
-      <span>{expense.descricao} · dia {expense.dia_vencimento} · {currency(expense.valor)}</span>
+      <span>{expense.descricao} · dia {expense.diaVencimento} · {currency(expense.valor)}</span>
       <button type="button" className="secondary" disabled={!!error} aria-label={`Remover ${expense.descricao} dos lançamentos automáticos`} onClick={() => remove(expense.id)}>Remover</button>
     </li>)}</ul>}
   </section>;
