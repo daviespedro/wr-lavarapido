@@ -247,7 +247,7 @@ tfoot td:last-child { color: #ff2e43; }
   .print-report { display: block; font-family: Arial, sans-serif; font-size: 11pt; color: black; }
   .print-report header { border-bottom: 2px solid black; padding-bottom: 12pt; margin-bottom: 16pt; }
   .print-report h1 { font-family: Arial, sans-serif; font-size: 22pt; margin: 8pt 0; letter-spacing: 0; }
-  .report-totals { display: flex; gap: 18pt; margin: 0 0 20pt; }
+  .report-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10pt; margin: 0 0 20pt; }
   .report-totals > div { flex: 1; border: 1px solid #999; padding: 10pt; break-inside: avoid; }
   .report-totals dt { font-size: 10pt; }
   .report-totals dd { margin: 8pt 0 0; font-size: 15pt; font-weight: bold; }
@@ -281,3 +281,5 @@ tfoot td:last-child { color: #ff2e43; }
 .whatsapp-link { align-items: center; justify-content: center; gap: 8px; color: #4ade80; border-color: #23864a; white-space: normal; }
 
 .client-plate-tag { display: inline-block; padding: 4px 8px; border: 1px solid #39393f; border-radius: 6px; background: #202024; }
+
+.opening-balance { background: #29292e; font-weight: 700; }

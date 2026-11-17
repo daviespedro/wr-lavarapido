@@ -26,15 +26,24 @@ export function addTransaction(db: Database, transaction: Transaction): Database
   if (transaction.type !== 'entrada' && transaction.type !== 'saida') throw new Error('Tipo de transação inválido.');
   return { ...db, transactions: [...db.transactions, { ...transaction, description: transaction.description.trim() }] };
 }
-export function dailyLedger(transactions: Transaction[], day: string) {
-  return periodLedger(transactions.filter(t => t.date === day));
+export function dailyLedger(transactions: Transaction[], day: string, initial = 0) {
+  return accountLedger(transactions, day, t => t.date === day, initial);
 }
-export function monthlyLedger(transactions: Transaction[], month: string) {
+export function monthlyLedger(transactions: Transaction[], month: string, initial = 0) {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('Selecione um mês e ano válidos.');
-  return periodLedger(transactions.filter(t => t.date.slice(0, 7) === month));
+  return accountLedger(transactions, `${month}-01`, t => t.date.slice(0, 7) === month, initial);
 }
-function periodLedger(transactions: Transaction[]) {
-  let balance = 0, income = 0, expenses = 0, fees = 0;
+function accountLedger(transactions: Transaction[], start: string, inPeriod: (transaction: Transaction) => boolean, initial: number) {
+  const previousBalance = transactions.reduce((balance, transaction) => {
+    if (transaction.date >= start) return balance;
+    return balance + (transaction.type === 'entrada'
+      ? transaction.amount - cardFee(transaction.amount, transaction.payment)
+      : -transaction.amount);
+  }, initial);
+  return { ...periodLedger(transactions.filter(inPeriod), previousBalance), previousBalance };
+}
+function periodLedger(transactions: Transaction[], previousBalance: number) {
+  let balance = previousBalance, income = 0, expenses = 0, fees = 0;
   const rows = [...transactions]
     .sort((a, b) => a.date.localeCompare(b.date) || Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.id.localeCompare(b.id))
     .map(t => {

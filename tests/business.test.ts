@@ -10,7 +10,7 @@ const input = { phone: '(11) 98765-4321', name: 'Cliente', model: 'Veículo', pl
 test('first use starts with no clients, vehicles or transactions and zero balances', () => {
   const db = createEmptyDatabase();
   assert.deepEqual(db, { version: 2, clients: [], vehicles: [], transactions: [] });
-  assert.deepEqual(dailyLedger(db.transactions, day), { rows: [], income: 0, expenses: 0, fees: 0, netIncome: 0, balance: 0 });
+  assert.deepEqual(dailyLedger(db.transactions, day), { rows: [], income: 0, expenses: 0, fees: 0, netIncome: 0, balance: 0, previousBalance: 0 });
 });
 
 test('customer history normalizes data, increments visits and rejects duplicate vehicles', () => {
@@ -56,7 +56,7 @@ test('daily ledger orders movements and isolates each date', () => {
   assert.equal(ledger.income, 133000);
   assert.equal(ledger.expenses, 33050);
   assert.equal(ledger.balance, 99950);
-  assert.equal(dailyLedger(db.transactions, '2030-01-01').balance, -123);
+  assert.equal(dailyLedger(db.transactions, '2030-01-01').balance, 99827);
 });
 
 test('checkout records all four payment methods and deducts 3% only for cards', () => {
@@ -114,12 +114,13 @@ test('monthly closing isolates month and year, includes boundary days and orders
   const originalOrder = transactions.map(t => t.id);
   const ledger = monthlyLedger(transactions, '2026-11');
   assert.deepEqual(ledger.rows.map(t => t.id), ['start', 'middle', 'end']);
-  assert.deepEqual(ledger.rows.map(t => t.balance), [12345, 9845, 19845]);
+  assert.deepEqual(ledger.rows.map(t => t.balance), [212343, 209843, 219843]);
   assert.equal(ledger.income, 22345);
   assert.equal(ledger.expenses, 2500);
-  assert.equal(ledger.balance, 19845);
+  assert.equal(ledger.previousBalance, 199998);
+  assert.equal(ledger.balance, 219843);
   assert.deepEqual(transactions.map(t => t.id), originalOrder);
-  assert.deepEqual(monthlyLedger(transactions, '2027-01'), { rows: [], income: 0, expenses: 0, fees: 0, netIncome: 0, balance: 0 });
+  assert.deepEqual(monthlyLedger(transactions, '2027-01'), { rows: [], income: 0, expenses: 0, fees: 0, netIncome: 0, balance: 319842, previousBalance: 319842 });
   assert.equal(monthlyLedger([movement('leap', '2024-02-29', -123)], '2024-02').balance, -123);
   assert.equal(monthlyLedger([movement('year-end', '2026-12-31', 123), movement('new-year', '2027-01-01', 999)], '2026-12').balance, 123);
   for (const month of ['', '2026', '2026-00', '2026-13', '2026-1', '2026-11-01']) assert.throws(() => monthlyLedger(transactions, month), /mês e ano válidos/);
@@ -146,7 +147,7 @@ test('recurring expenses use the selected period, exact description and due date
   assert.deepEqual(past.db.transactions.map(t => t.date), ['2026-11-08', '2026-11-15', '2025-11-08', '2025-11-15']);
   assert.equal(applyRecurring(past.db, expenses, past.logs, '2026-12', today).db.transactions.at(-1)?.date, '2026-12-31');
   const october = applyRecurring(past.db, expenses, past.logs, '2026-10', today);
-  assert.equal(dailyLedger(october.db.transactions, '2026-10-31').balance, -1000);
+  assert.equal(dailyLedger(october.db.transactions, '2026-10-31').balance, -85000);
 });
 
 test('legacy expense fields and flags are migrated without charging a paid month again', async () => {
@@ -175,4 +176,15 @@ test('vehicles without plates can coexist and keep separate service histories', 
   assert.equal(serviceHistory(db)[0].phone, first.phone);
   assert.equal(db.vehicles[0].client.phone, second.phone);
   assert.equal(db.transactions[0].description.endsWith('()'), false);
+});
+
+test('bank balance carries historical net card income into daily closing', () => {
+  const transactions = [
+    { id: 'card', date: '2026-11-07', description: 'Lavagem', type: 'entrada' as const, amount: 10000, payment: 'Crédito' as const, createdAt: now },
+    { id: 'expense', date: day, description: 'Despesa', type: 'saida' as const, amount: 2500, createdAt: now },
+  ];
+  const ledger = dailyLedger(transactions, day, 20000);
+  assert.equal(ledger.previousBalance, 29700);
+  assert.equal(ledger.rows[0].balance, 27200);
+  assert.equal(ledger.balance, 27200);
 });
