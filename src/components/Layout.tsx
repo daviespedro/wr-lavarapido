@@ -20,7 +20,7 @@ export function Layout({ page, onNavigate, children }: { page: Page; onNavigate:
           }} className={`nav-link flex items-center gap-2.5 ${page === key ? 'active' : ''}`} aria-current={page === key ? 'page' : undefined}><Icon size={17}/>{label}</a>;
         })}
       </nav>
-      <div className="shift mt-auto"><strong>Turno aberto</strong><p>Desde 08:00 · Operador Paulo</p></div>
+      <div className="shift mt-auto"><strong>Turno aberto</strong><p>Desde 07:30 · Operador Paulo</p></div>
     </aside>
     <main id="main" className={`main ${page === 'cash' ? 'cash-page' : ''}`}><div className="content">{children}</div></main>
   </div>;
