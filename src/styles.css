@@ -286,3 +286,12 @@ tfoot td:last-child { color: #ff2e43; }
 
 .danger-outline { color: #ff7786; border-color: #a43d4b; }
 .danger-outline:hover { background: #401d25; }
+
+.vehicle-dialog:has(#transaction-manager-title) { width: min(760px, calc(100% - 32px)); }
+.record-list .managed-transaction { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; gap: 10px; }
+.managed-description { overflow-wrap: anywhere; }
+.movement-tag { border: 1px solid currentColor; border-radius: 6px; padding: 2px 7px; }
+@media (max-width: 560px) {
+  .record-list .managed-transaction { grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 6px; }
+  .managed-description { grid-column: 1 / -1; grid-row: 1; }
+}

@@ -1,7 +1,7 @@
-import { DeleteTransactionButton } from '../components/DeleteTransactionButton';
+import { TransactionManagerDialog } from '../components/TransactionManagerDialog';
 import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { ArrowUpRight, ArrowDownRight, Landmark, Plus, Printer } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Landmark, ListFilter, Plus, Printer } from 'lucide-react';
 import { RecurringExpenses } from '../components/RecurringExpenses';
 import { ClosingReport } from '../components/ClosingReport';
 import { PageHeading, Notice } from '../components/Layout';
@@ -12,6 +12,7 @@ import { addTransaction, dailyLedger, cardFee } from '../lib/business';
 import { currency, localDate, numberLabel, dateLabel, parseMoney } from '../lib/format';
 export function Cash({ month, setMonth }: { month: string; setMonth: (month: string) => void }) {
   const { db, initialBalance, error: storageError } = useDatabase();
+  const [managing, setManaging] = useState<'day' | 'month' | null>(null);
   const [recurringError, setRecurringError] = useState('');
   function syncRecurring(period: string) {
     try {
@@ -75,7 +76,12 @@ export function Cash({ month, setMonth }: { month: string; setMonth: (month: str
       <div><label className="sr-only" htmlFor="amount">Valor em reais</label><input id="amount" className="money-input" inputMode="decimal" placeholder="R$ 0,00" value={amount} onChange={e => setAmount(e.target.value)} required/></div>
       <button className="primary" disabled={!!storageError}><Plus size={18}/> LANÇAR</button>
     </form></section>
-    <div className="ledger-panel panel"><div className="table-scroll"><table><caption className="sr-only">Movimentações de {dateLabel(date)} com saldo acumulado em ordem cronológica</caption><thead><tr><th scope="col">DIA</th><th scope="col">DESCRIÇÃO</th><th scope="col" className="numeric">ENTRADAS LÍQUIDAS (R$)</th><th scope="col" className="numeric">SAÍDAS (R$)</th><th scope="col" className="numeric">SALDO (R$)</th></tr></thead><tbody><tr className="opening-balance"><th scope="row" colSpan={4}>Saldo Anterior</th><td className="numeric">{numberLabel(ledger.previousBalance)}</td></tr>{ledger.rows.map(row => <tr key={row.id}><td className="muted">{dateLabel(row.date)}</td><td>{row.description}</td><td className="numeric income">{row.type === 'entrada' ? numberLabel(row.amount - cardFee(row.amount, row.payment)) : '–'}</td><td className="numeric expenses">{row.type === 'saida' ? numberLabel(row.amount) : '–'}</td><td className="numeric row-balance"><div className="flex items-center justify-end gap-2"><span>{numberLabel(row.balance)}</span><DeleteTransactionButton id={row.id} description={row.description}/></div></td></tr>)}{!ledger.rows.length && <tr><td colSpan={5} className="empty-ledger">Nenhuma transação neste dia. Faça o primeiro lançamento acima.</td></tr>}</tbody><tfoot><tr><th scope="row" colSpan={2}>Saldo Final Acumulado</th><td className="numeric income">{numberLabel(ledger.netIncome)}</td><td className="numeric expenses">{numberLabel(ledger.expenses)}</td><td className={`numeric ${ledger.balance < 0 ? 'expenses' : ''}`}>{numberLabel(ledger.balance)}</td></tr></tfoot></table></div></div>
+    <div className="flex justify-end mb-3 no-print">
+      <button type="button" className="secondary" disabled={!!storageError} onClick={() => setManaging('day')}>
+        <ListFilter size={16}/> Gerenciar Lançamentos
+      </button>
+    </div>
+    <div className="ledger-panel panel"><div className="table-scroll"><table><caption className="sr-only">Movimentações de {dateLabel(date)} com saldo acumulado em ordem cronológica</caption><thead><tr><th scope="col">DIA</th><th scope="col">DESCRIÇÃO</th><th scope="col" className="numeric">ENTRADAS LÍQUIDAS (R$)</th><th scope="col" className="numeric">SAÍDAS (R$)</th><th scope="col" className="numeric">SALDO (R$)</th></tr></thead><tbody><tr className="opening-balance"><th scope="row" colSpan={4}>Saldo Anterior</th><td className="numeric">{numberLabel(ledger.previousBalance)}</td></tr>{ledger.rows.map(row => <tr key={row.id}><td className="muted">{dateLabel(row.date)}</td><td>{row.description}</td><td className="numeric income">{row.type === 'entrada' ? numberLabel(row.amount - cardFee(row.amount, row.payment)) : '–'}</td><td className="numeric expenses">{row.type === 'saida' ? numberLabel(row.amount) : '–'}</td><td className="numeric row-balance">{numberLabel(row.balance)}</td></tr>)}{!ledger.rows.length && <tr><td colSpan={5} className="empty-ledger">Nenhuma transação neste dia. Faça o primeiro lançamento acima.</td></tr>}</tbody><tfoot><tr><th scope="row" colSpan={2}>Saldo Final Acumulado</th><td className="numeric income">{numberLabel(ledger.netIncome)}</td><td className="numeric expenses">{numberLabel(ledger.expenses)}</td><td className={`numeric ${ledger.balance < 0 ? 'expenses' : ''}`}>{numberLabel(ledger.balance)}</td></tr></tfoot></table></div></div>
     <section className="transaction-panel panel no-print">
       <form key={initialBalance} className="flex flex-wrap items-end gap-3" onSubmit={event => {
         event.preventDefault();
@@ -94,9 +100,12 @@ export function Cash({ month, setMonth }: { month: string; setMonth: (month: str
     </section>
     <RecurringExpenses onRegistered={() => syncRecurring(month)}/>
     <section className="monthly-section no-print" aria-label="Relatório mensal">
-      <div className="closing-actions"><div className="field"><label htmlFor="report-month">MÊS / ANO DO RELATÓRIO</label><input id="report-month" type="month" value={month} onChange={e => { if (/^\d{4}-(0[1-9]|1[0-2])$/.test(e.target.value)) setMonth(e.target.value); }}/></div><button type="button" className="primary" onClick={() => printReport('month')} disabled={!!storageError}><Printer size={18}/> Imprimir Fechamento do Mês</button></div>
+      <div className="closing-actions"><div className="field"><label htmlFor="report-month">MÊS / ANO DO RELATÓRIO</label><input id="report-month" type="month" value={month} onChange={e => { if (/^\d{4}-(0[1-9]|1[0-2])$/.test(e.target.value)) setMonth(e.target.value); }}/></div><div className="flex flex-wrap items-center gap-3">
+        <button type="button" className="secondary" disabled={!!storageError} onClick={() => setManaging('month')}><ListFilter size={16}/> Gerenciar Lançamentos do Mês</button>
+        <button type="button" className="primary" onClick={() => printReport('month')} disabled={!!storageError}><Printer size={18}/> Imprimir Fechamento do Mês</button></div></div>
       <ClosingReport initialBalance={initialBalance} transactions={db.transactions} period={month} kind="month"/>
     </section>
+    {managing && <TransactionManagerDialog kind={managing} period={managing === 'day' ? date : month} transactions={db.transactions} onClose={() => setManaging(null)}/>}
     <ClosingReport initialBalance={reportData?.initialBalance ?? initialBalance} transactions={reportData?.transactions ?? db.transactions} period={reportKind === 'month' ? month : reportDay ?? date} kind={reportKind} printable/>
   </>;
 }

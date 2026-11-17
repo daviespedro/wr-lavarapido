@@ -6,7 +6,7 @@ import { commitDatabase } from '../lib/store';
 export function DeleteTransactionButton({ id, description }: { id: string; description: string }) {
   const [error, setError] = useState('');
   function remove() {
-    if (!window.confirm('Tem certeza que deseja remover este lançamento do extrato? Os saldos serão recalculados automaticamente.')) return;
+    if (!window.confirm('Tem certeza que deseja excluir este lançamento?')) return;
     try { commitDatabase(db => deleteTransaction(db, id)); }
     catch (cause) { setError((cause as Error).message); }
   }
