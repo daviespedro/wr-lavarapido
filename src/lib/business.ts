@@ -81,6 +81,21 @@ export function clientsByPlate(db: Database) {
   const clients = new Map<string, Client>();
   for (const { client } of db.completed ?? []) clients.set(client.plate, client);
   for (const { client } of db.vehicles) clients.set(client.plate, client);
+  for (const client of db.clientVehicles ?? []) clients.set(client.plate, client);
   for (const client of db.clients) clients.set(client.plate, client);
   return clients;
+}
+
+export function registerClient(db: Database, input: Pick<Client, 'name' | 'phone' | 'model' | 'plate'>): Database {
+  const name = input.name.trim(), model = input.model.trim();
+  const phone = digits(input.phone);
+  const plate = input.plate.replace(/[^a-z0-9]/gi, '').toUpperCase();
+  if (!name || !model) throw new Error('Informe o nome e o modelo do veículo.');
+  if (phone.length !== 11) throw new Error('Informe o telefone com DDD e 9 dígitos.');
+  if (!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)) throw new Error('Informe uma placa válida.');
+  if (clientsByPlate(db).has(plate) || serviceHistory(db).some(service => service.plate === plate)) throw new Error('Esta placa já está cadastrada no sistema');
+  const previous = db.clients.find(client => client.phone === phone);
+  const client = { name, phone, model, plate, visits: previous?.visits ?? 0 };
+  return { ...db, clientVehicles: [...clientsByPlate(db).values(), client],
+    clients: [...db.clients.filter(entry => entry.phone !== phone), client] };
 }

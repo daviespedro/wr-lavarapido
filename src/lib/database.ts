@@ -12,6 +12,7 @@ export function validateDatabase(value: unknown): Database {
   const db = value as Database;
   if (!db || db.version !== 2 || !Array.isArray(db.clients) || !Array.isArray(db.vehicles) || !Array.isArray(db.transactions)
     || !db.clients.every(isClient)
+    || (db.clientVehicles !== undefined && (!Array.isArray(db.clientVehicles) || !db.clientVehicles.every(isClient)))
     || !db.vehicles.every(isVehicle)
     || (db.completed !== undefined && (!Array.isArray(db.completed) || !db.completed.every(v => isVehicle(v) && v.status === 'Finalizado' && typeof v.completedAt === 'string' && !Number.isNaN(Date.parse(v.completedAt)))))
     || !db.transactions.every(t => t && typeof t.id === 'string' && t.id.length > 0 && isDate(t.date) && typeof t.description === 'string' && t.description.trim().length > 0 && (t.vehicleId === undefined || typeof t.vehicleId === 'string') && (t.payment === undefined || (t.type === 'entrada' && paymentMethods.includes(t.payment))) && ['entrada', 'saida'].includes(t.type) && Number.isSafeInteger(t.amount) && t.amount > 0 && typeof t.createdAt === 'string' && !Number.isNaN(Date.parse(t.createdAt)))) {

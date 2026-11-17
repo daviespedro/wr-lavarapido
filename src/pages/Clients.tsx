@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { NewClientDialog } from '../components/NewClientDialog';
 import { ClientProfile } from '../components/ClientProfile';
 import { PageHeading } from '../components/Layout';
 import { WhatsAppLink } from '../components/WhatsAppLink';
@@ -10,8 +11,9 @@ const searchText = (value: string) => value.normalize('NFD').replace(/\p{M}/gu, 
 const searchPlate = (value: string) => value.replace(/[\s-]/g, '').toLowerCase();
 
 export function Clients() {
-  const { db } = useDatabase();
+  const { db, error } = useDatabase();
   const [profile, setProfile] = useState<Client | null>(null);
+  const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState('');
   const vehiclesByPhone = new Map<string, Client[]>();
   for (const vehicle of clientsByPlate(db).values()) {
@@ -30,7 +32,10 @@ export function Clients() {
       || (plateTerm && searchPlate(vehicle.plate).includes(plateTerm))));
 
   return <>
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-4">
     <PageHeading section="CRM" title="Clientes">Consulte os dados dos clientes e o histórico de serviços por placa.</PageHeading>
+      <button type="button" className="primary" disabled={!!error} onClick={() => setAdding(true)}>+ Novo Cliente</button>
+    </div>
     <section className="summary-grid grid grid-cols-1 sm:grid-cols-2" aria-label="Indicadores de clientes e serviços">
       <div className="summary-card panel"><h2>Total de Clientes</h2><p className="summary-value">{db.clients.length}</p></div>
       <div className="summary-card panel"><h2>Total de Serviços Realizados</h2><p className="summary-value">{serviceHistory(db).length}</p></div>
@@ -63,6 +68,7 @@ export function Clients() {
         </tbody>
       </table>
     </div></div>
+    {adding && <NewClientDialog onClose={() => setAdding(false)} onSaved={() => { setQuery(''); setAdding(false); }}/>}
     {profile && <ClientProfile client={profile} db={db} onClose={() => setProfile(null)}/>}
   </>;
 }
