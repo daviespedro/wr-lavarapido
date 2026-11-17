@@ -188,3 +188,19 @@ test('bank balance carries historical net card income into daily closing', () =>
   assert.equal(ledger.rows[0].balance, 27200);
   assert.equal(ledger.balance, 27200);
 });
+
+test('deleting a completed custom service removes only its linked payment and preserves the client', async () => {
+  const { deleteService, serviceHistory } = await import('../src/lib/business');
+  const { validateDatabase } = await import('../src/lib/database');
+  let db = registerVehicle(createEmptyDatabase(), { ...input, serviceId: 'custom' }, 'custom-visit', now, [{ id: 'custom', name: 'Lavagem especial' }]);
+  db.vehicles[0].status = 'Finalizado';
+  db = finishVehicle(validateDatabase(db), 'custom-visit', 'paid', now, day, 'Crédito');
+  db = addTransaction(db, { ...db.transactions[0], id: 'manual', vehicleId: undefined });
+  assert.equal(serviceHistory(db)[0].description, 'Lavagem especial');
+  db = deleteService(db, 'custom-visit');
+  assert.deepEqual(db.transactions.map(transaction => transaction.id), ['manual']);
+  assert.equal(dailyLedger(db.transactions, day).balance, 11975);
+  assert.equal(serviceHistory(db).length, 0);
+  assert.equal(db.clients[0].visits, 0);
+  assert.equal(db.clientVehicles?.[0].plate, 'BRA2E19');
+});

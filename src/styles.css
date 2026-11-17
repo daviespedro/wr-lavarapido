@@ -283,3 +283,6 @@ tfoot td:last-child { color: #ff2e43; }
 .client-plate-tag { display: inline-block; padding: 4px 8px; border: 1px solid #39393f; border-radius: 6px; background: #202024; }
 
 .opening-balance { background: #29292e; font-weight: 700; }
+
+.danger-outline { color: #ff7786; border-color: #a43d4b; }
+.danger-outline:hover { background: #401d25; }

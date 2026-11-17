@@ -1,17 +1,19 @@
 import { useState } from 'react';
 import { Yard } from '../components/Yard';
-import { Phone, UserRound, Car, Hash, Sparkles, Plus, Wallet } from 'lucide-react';
+import { Phone, UserRound, Car, Hash, Sparkles, Plus, Settings, Wallet } from 'lucide-react';
 import { PageHeading, Notice } from '../components/Layout';
-import { services } from '../lib/data';
+import { ServiceCatalogDialog } from '../components/ServiceCatalogDialog';
 import { digits, phoneLabel } from '../lib/format';
-import { commitDatabase, useDatabase } from '../lib/store';
+import { commitDatabase, readCatalog, useDatabase } from '../lib/store';
 import { clientsByPlate, registerVehicle } from '../lib/business';
 import type { ReceptionInput } from '../lib/types';
 const emptyForm: ReceptionForm = { phone: '', name: '', model: '', plate: '', serviceId: 'lavagem' };
 type ReceptionForm = Omit<ReceptionInput, 'amount'>;
 export function Reception() {
-  const { db, error: storageError } = useDatabase();
+  const { db, catalog, error: storageError } = useDatabase();
   const [form, setForm] = useState<ReceptionForm>(emptyForm);
+  const [managing, setManaging] = useState(false);
+  const serviceId = catalog.some(service => service.id === form.serviceId) ? form.serviceId : catalog[0]?.id ?? '';
   const [amount, setAmount] = useState('');
   const [notice, setNotice] = useState<{ message: string; error?: boolean } | null>(null);
   const knownVehicles = [...clientsByPlate(db).values()].filter(vehicle => vehicle.phone === form.phone);
@@ -34,7 +36,7 @@ export function Reception() {
   function submit(event: React.FormEvent) {
     event.preventDefault();
     try {
-      commitDatabase(current => registerVehicle(current, { ...form, amount: /^\d+(?:[.,]\d{1,2})?$/.test(amount) ? Math.round(Number(amount.replace(',', '.')) * 100) : NaN }, crypto.randomUUID(), new Date().toISOString()));
+      commitDatabase(current => registerVehicle(current, { ...form, serviceId, amount: /^\d+(?:[.,]\d{1,2})?$/.test(amount) ? Math.round(Number(amount.replace(',', '.')) * 100) : NaN }, crypto.randomUUID(), new Date().toISOString(), readCatalog()));
       setForm(emptyForm); setAmount(''); setNotice({ message: 'Entrada registrada no pátio. O pagamento será lançado no fechamento.' });
     } catch (error) { setNotice({ message: (error as Error).message, error: true }); }
   }
@@ -53,10 +55,24 @@ export function Reception() {
         </div>}
       </div>
       <div className="field"><label htmlFor="plate"><Hash size={15}/> PLACA (OPCIONAL)</label><input id="plate" className="plate-input" placeholder="ABC1D23" maxLength={8} value={form.plate} onChange={e => changePlate(e.target.value)}/></div>
-      <div className="field"><label htmlFor="service"><Sparkles size={15}/> SERVIÇO REALIZADO</label><select id="service" value={form.serviceId} onChange={e => update('serviceId', e.target.value)}>{services.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}</select></div>
+      <div className="field">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <label htmlFor="service"><Sparkles size={15}/> SERVIÇO REALIZADO</label>
+          <button className="secondary" type="button" disabled={!!storageError} onClick={() => setManaging(true)}><Settings size={15}/> Gerenciar</button>
+        </div>
+        <select id="service" value={serviceId} onChange={event => {
+          update('serviceId', event.target.value);
+          const suggested = catalog.find(service => service.id === event.target.value)?.suggestedAmount;
+          if (suggested !== undefined) setAmount((suggested / 100).toFixed(2));
+        }}>
+          {!catalog.length && <option value="">Nenhum serviço cadastrado</option>}
+          {catalog.map(service => <option value={service.id} key={service.id}>{service.name}</option>)}
+        </select>
+      </div>
       <div className="field"><label htmlFor="amount"><Wallet size={15}/> VALOR (R$)</label><input id="amount" name="amount" type="number" inputMode="decimal" min="0.01" step="0.01" placeholder="0,00" value={amount} onChange={e => setAmount(e.target.value)} required/></div>
-      <div className="flex items-end md:col-span-2"><button className="primary w-full" disabled={!!storageError}><Plus size={19}/> REGISTRAR ENTRADA</button></div>
+      <div className="flex items-end md:col-span-2"><button className="primary w-full" disabled={!!storageError || !serviceId}><Plus size={19}/> REGISTRAR ENTRADA</button></div>
     </form>
+    {managing && <ServiceCatalogDialog onClose={() => setManaging(false)}/> }
     <Yard/>
   </>;
 }

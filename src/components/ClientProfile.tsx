@@ -1,3 +1,4 @@
+import { DeleteServiceButton } from './DeleteServiceButton';
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { NewClientDialog } from './NewClientDialog';
@@ -23,6 +24,6 @@ export function ClientProfile({ client, db, onClose }: { client: Client; db: Dat
     <ul className="record-list">{vehicles.map(vehicle => <li key={vehicle.plate || vehicle.model}>{vehicle.model} ({vehicle.plate || 'Sem placa'})</li>)}</ul>
     <button className="secondary mb-4" type="button" onClick={() => setAdding(true)}>+ Adicionar Veículo</button>
     <h3>Histórico de serviços</h3>
-    {history.length ? <ul className="record-list">{history.map(service => <li key={service.id}><span>{service.description}{service.model && ` — ${service.model} (${service.plate || 'Sem placa'})`} · {service.date.split('-').reverse().join('/')}</span><strong>{currency(service.amount)}</strong></li>)}</ul> : <p className="muted">Ainda não há serviços concluídos para este cliente.</p>}
+    {history.length ? <ul className="record-list">{history.map(service => <li key={service.id}><span>{service.description}{service.model && ` — ${service.model} (${service.plate || 'Sem placa'})`} · {service.date.split('-').reverse().join('/')}</span><strong>{currency(service.amount)}</strong><DeleteServiceButton id={service.id} compact/></li>)}</ul> : <p className="muted">Ainda não há serviços concluídos para este cliente.</p>}
   </div>{adding && <NewClientDialog client={client} onClose={() => setAdding(false)} onSaved={() => setAdding(false)}/>}</dialog>;
 }

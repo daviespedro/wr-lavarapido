@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
-import { createEmptyDatabase } from './data';
-import type { Client, Database, RecurringExpense } from './types';
+import { createEmptyDatabase, services } from './data';
+import type { Client, Database, RecurringExpense, ServiceType } from './types';
 import { digits } from './format';
 import { clientsByPlate } from './business';
 import { validateDatabase } from './database';
@@ -8,11 +8,12 @@ import { applyRecurring, EXPENSES_KEY, LEGACY_EXPENSES_KEY, LOGS_KEY, validateEx
 
 export const TRANSACTIONS_KEY = 'transacoes';
 const INITIAL_BALANCE_KEY = 'wr_saldo_inicial';
+const SERVICE_TYPES_KEY = 'wr_tipos_servicos';
 const CLIENTS_KEY = 'wr_clientes';
 export const STORAGE_KEY = 'wr-lava-rapido:v2';
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach(listener => listener());
-let snapshot: { db: Database; expenses: RecurringExpense[]; initialBalance: number; error: string | null };
+let snapshot: { db: Database; expenses: RecurringExpense[]; initialBalance: number; catalog: ServiceType[]; error: string | null };
 const read = (key: string, fallback: unknown) => {
   const raw = localStorage.getItem(key);
   return raw === null ? fallback : JSON.parse(raw);
@@ -75,20 +76,34 @@ export function saveInitialBalance(value: number) {
   save(INITIAL_BALANCE_KEY, validateInitialBalance(value));
   refresh();
 }
+function validateCatalog(value: unknown): ServiceType[] {
+  if (!Array.isArray(value) || !value.every(service => service && typeof service.id === 'string' && service.id
+    && typeof service.name === 'string' && service.name.trim()
+    && (service.suggestedAmount === undefined || (Number.isSafeInteger(service.suggestedAmount) && service.suggestedAmount > 0)))
+    || new Set(value.map(service => service.id)).size !== value.length) throw new Error('Catálogo de serviços inválido.');
+  return value;
+}
+export const readCatalog = () => validateCatalog(read(SERVICE_TYPES_KEY, services));
+export function updateCatalog(update: (current: ServiceType[]) => ServiceType[]) {
+  save(SERVICE_TYPES_KEY, validateCatalog(update(readCatalog())));
+  refresh();
+}
 function refresh() {
   try {
     const db = readDatabase(), expenses = readExpenses();
     readLogs();
+    const catalog = readCatalog();
+    if (localStorage.getItem(SERVICE_TYPES_KEY) === null) save(SERVICE_TYPES_KEY, catalog);
     saveClientRegistry(db);
-    snapshot = { db, expenses, initialBalance: readInitialBalance(), error: null };
+    snapshot = { db, expenses, catalog, initialBalance: readInitialBalance(), error: null };
   } catch (error) {
-    snapshot = { db: snapshot?.db ?? createEmptyDatabase(), expenses: snapshot?.expenses ?? [], initialBalance: snapshot?.initialBalance ?? 0, error: error instanceof Error ? error.message : 'Não foi possível acessar os dados do navegador.' };
+    snapshot = { db: snapshot?.db ?? createEmptyDatabase(), expenses: snapshot?.expenses ?? [], catalog: snapshot?.catalog ?? services, initialBalance: snapshot?.initialBalance ?? 0, error: error instanceof Error ? error.message : 'Não foi possível acessar os dados do navegador.' };
   }
   emit();
 }
 refresh();
 window.addEventListener('storage', event => {
-  if (event.key === null || [STORAGE_KEY, INITIAL_BALANCE_KEY, CLIENTS_KEY, TRANSACTIONS_KEY, EXPENSES_KEY, LEGACY_EXPENSES_KEY, LOGS_KEY].includes(event.key)) refresh();
+  if (event.key === null || [STORAGE_KEY, SERVICE_TYPES_KEY, INITIAL_BALANCE_KEY, CLIENTS_KEY, TRANSACTIONS_KEY, EXPENSES_KEY, LEGACY_EXPENSES_KEY, LOGS_KEY].includes(event.key)) refresh();
 });
 function subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; }
 export const useDatabase = () => useSyncExternalStore(subscribe, () => snapshot);
@@ -136,6 +151,7 @@ export function parseBackup(value: unknown): StorageEntries {
   const storage = backup.storage;
   if (!storage || typeof storage !== 'object' || Array.isArray(storage) || !Object.values(storage).every(v => typeof v === 'string')) throw new Error('Backup inválido.');
   const entries = storage as StorageEntries;
+  if (Object.hasOwn(entries, SERVICE_TYPES_KEY)) validateCatalog(JSON.parse(entries[SERVICE_TYPES_KEY]));
   if (Object.hasOwn(entries, INITIAL_BALANCE_KEY)) validateInitialBalance(JSON.parse(entries[INITIAL_BALANCE_KEY]));
   if (Object.hasOwn(entries, STORAGE_KEY)) validateDatabase(JSON.parse(entries[STORAGE_KEY]));
   if (Object.hasOwn(entries, CLIENTS_KEY)) readClientVehicles(JSON.parse(entries[CLIENTS_KEY]));
