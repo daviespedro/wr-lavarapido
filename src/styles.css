@@ -279,3 +279,5 @@ tfoot td:last-child { color: #ff2e43; }
 .checkout-form .payment-field, .checkout-form .cash-fees { margin: 0; }
 .checkout-form .payment-field { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .whatsapp-link { align-items: center; justify-content: center; gap: 8px; color: #4ade80; border-color: #23864a; white-space: normal; }
+
+.client-plate-tag { display: inline-block; padding: 4px 8px; border: 1px solid #39393f; border-radius: 6px; background: #202024; }

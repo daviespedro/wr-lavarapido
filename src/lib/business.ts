@@ -11,6 +11,8 @@ export function registerVehicle(db: Database, input: ReceptionInput, id: string,
   if (!services.some(s => s.id === input.serviceId)) throw new Error('Selecione um serviço.');
   if (!Number.isSafeInteger(input.amount) || input.amount <= 0) throw new Error('Informe um valor válido maior que zero.');
   if (plate && db.vehicles.some(v => v.client.plate === plate)) throw new Error('Este veículo já está no pátio.');
+  const owner = plate ? clientsByPlate(db).get(plate) : undefined;
+  if (owner && owner.phone !== phone) throw new Error('Esta placa está vinculada a outro cliente.');
   const previous = db.clients.find(c => c.phone === phone);
   const client = { phone, name: input.name.trim(), model: input.model.trim(), plate, visits: (previous?.visits ?? 0) + 1 };
   const vehicle: Vehicle = { id, client, serviceId: input.serviceId, amount: input.amount, status: 'Aguardando', arrivedAt: now };
@@ -91,9 +93,12 @@ export function registerClient(db: Database, input: Pick<Client, 'name' | 'phone
   const phone = digits(input.phone);
   const plate = input.plate.replace(/[^a-z0-9]/gi, '').toUpperCase();
   if (!name || !model) throw new Error('Informe o nome e o modelo do veículo.');
-  if (phone.length !== 11) throw new Error('Informe o telefone com DDD e 9 dígitos.');
+  if (!/^\d{10,11}$/.test(phone)) throw new Error('Informe um telefone válido com DDD.');
   if (plate && !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)) throw new Error('Informe uma placa válida.');
   if (plate && (clientsByPlate(db).has(plate) || serviceHistory(db).some(service => service.plate === plate))) throw new Error('Esta placa já está cadastrada no sistema');
+  if (!plate && [...clientsByPlate(db).values()].some(client => !client.plate && client.phone === phone && client.model.toLowerCase() === model.toLowerCase())) {
+    throw new Error('Este modelo sem placa já está vinculado ao cliente.');
+  }
   const previous = db.clients.find(client => client.phone === phone);
   const client = { name, phone, model, plate, visits: previous?.visits ?? 0 };
   return { ...db, clientVehicles: [...clientsByPlate(db).values(), client],

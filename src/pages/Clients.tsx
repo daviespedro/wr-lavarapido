@@ -54,12 +54,10 @@ export function Clients() {
             <tr key={client.phone}>
               <th scope="row">{client.name}</th>
               <td><WhatsAppLink phone={client.phone}/></td>
-              <td>{vehicles.map(vehicle => vehicle.plate || `Sem placa (${vehicle.model})`).join(', ')}</td>
               <td><div className="flex flex-wrap gap-2">
-                {vehicles.map(vehicle => <button key={vehicle.plate || vehicle.model} className="secondary" type="button" onClick={() => setProfile({ ...vehicle, name: client.name })}>
-                  Ver Perfil/Histórico{vehicles.length > 1 ? ` · ${vehicle.plate || vehicle.model}` : ''}
-                </button>)}
+                {vehicles.map(vehicle => <span className="client-plate-tag" key={vehicle.plate || vehicle.model}>{vehicle.plate || `Sem placa (${vehicle.model})`}</span>)}
               </div></td>
+              <td><button className="secondary" type="button" onClick={() => setProfile(client)}>Ver Perfil/Histórico</button></td>
             </tr>
           ))}
           {!rows.length && <tr><td colSpan={4} className="empty-ledger">

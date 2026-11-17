@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { createEmptyDatabase } from './data';
-import type { Database, RecurringExpense } from './types';
+import type { Client, Database, RecurringExpense } from './types';
+import { digits } from './format';
 import { clientsByPlate } from './business';
 import { validateDatabase } from './database';
 import { applyRecurring, EXPENSES_KEY, LEGACY_EXPENSES_KEY, LOGS_KEY, validateExpenses, validateLogs } from './recurring';
@@ -15,10 +16,46 @@ const read = (key: string, fallback: unknown) => {
   const raw = localStorage.getItem(key);
   return raw === null ? fallback : JSON.parse(raw);
 };
+type StoredClient = {
+  id: string;
+  nome: string;
+  telefone: string;
+  veiculos: { placa: string; modelo: string }[];
+};
+
+function readClientVehicles(value: unknown): Client[] {
+  if (!Array.isArray(value)) throw new Error('Cadastro de clientes inválido.');
+  const vehicles = value.flatMap(entry => {
+    if (!entry || typeof entry !== 'object') return [entry];
+    if (!Object.hasOwn(entry, 'veiculos')) {
+      return [{ name: entry.name ?? entry.nome, phone: typeof (entry.phone ?? entry.telefone) === 'string' ? digits(entry.phone ?? entry.telefone) : undefined,
+        plate: entry.plate ?? entry.placa ?? '', model: entry.model ?? entry.modelo, visits: entry.visits ?? 0 }];
+    }
+    const client = entry as StoredClient;
+    if (typeof client.id !== 'string' || !Array.isArray(client.veiculos)) throw new Error('Cadastro de clientes inválido.');
+    return client.veiculos.map(vehicle => ({
+      name: client.nome, phone: client.telefone, plate: vehicle?.placa, model: vehicle?.modelo, visits: 0,
+    }));
+  });
+  return validateDatabase({ ...createEmptyDatabase(), clientVehicles: vehicles }).clientVehicles ?? [];
+}
+
+function saveClientRegistry(db: Database) {
+  const registry = new Map<string, StoredClient>();
+  for (const client of db.clients) {
+    registry.set(client.phone, { id: client.phone, nome: client.name, telefone: client.phone, veiculos: [] });
+  }
+  for (const vehicle of clientsByPlate(db).values()) {
+    registry.get(vehicle.phone)?.veiculos.push({ placa: vehicle.plate, modelo: vehicle.model });
+  }
+  const serialized = JSON.stringify([...registry.values()]);
+  if (localStorage.getItem(CLIENTS_KEY) !== serialized) localStorage.setItem(CLIENTS_KEY, serialized);
+}
+
 const readDatabase = () => {
   const db = validateDatabase(read(STORAGE_KEY, createEmptyDatabase()));
   const transactions = JSON.parse(localStorage.getItem(TRANSACTIONS_KEY) ?? 'null');
-  const stored = validateDatabase({ ...db, clientVehicles: read(CLIENTS_KEY, []) }).clientVehicles ?? [];
+  const stored = readClientVehicles(read(CLIENTS_KEY, []));
   const combined = validateDatabase({ ...db, transactions: transactions ?? db.transactions, clientVehicles: [...stored, ...(db.clientVehicles ?? [])] });
   const vehicles = [...clientsByPlate(combined).values()];
   const byPhone = new Map(vehicles.map(client => [client.phone, client]));
@@ -32,6 +69,7 @@ function refresh() {
   try {
     const db = readDatabase(), expenses = readExpenses();
     readLogs();
+    saveClientRegistry(db);
     snapshot = { db, expenses, error: null };
   } catch (error) {
     snapshot = { db: snapshot?.db ?? createEmptyDatabase(), expenses: snapshot?.expenses ?? [], error: error instanceof Error ? error.message : 'Não foi possível acessar os dados do navegador.' };
@@ -49,8 +87,7 @@ export function commitDatabase(update: (current: Database) => Database) {
   const next = update(readDatabase());
   save(TRANSACTIONS_KEY, next.transactions);
   save(STORAGE_KEY, next);
-  const clients = JSON.stringify([...clientsByPlate(next).values()]);
-  if (localStorage.getItem(CLIENTS_KEY) !== clients) localStorage.setItem(CLIENTS_KEY, clients);
+  saveClientRegistry(next);
   refresh();
 }
 export function processRecurring(period: string, today = new Date()) {
@@ -90,7 +127,7 @@ export function parseBackup(value: unknown): StorageEntries {
   if (!storage || typeof storage !== 'object' || Array.isArray(storage) || !Object.values(storage).every(v => typeof v === 'string')) throw new Error('Backup inválido.');
   const entries = storage as StorageEntries;
   if (Object.hasOwn(entries, STORAGE_KEY)) validateDatabase(JSON.parse(entries[STORAGE_KEY]));
-  if (Object.hasOwn(entries, CLIENTS_KEY)) validateDatabase({ ...createEmptyDatabase(), clientVehicles: JSON.parse(entries[CLIENTS_KEY]) });
+  if (Object.hasOwn(entries, CLIENTS_KEY)) readClientVehicles(JSON.parse(entries[CLIENTS_KEY]));
   if (Object.hasOwn(entries, TRANSACTIONS_KEY)) validateDatabase({ ...createEmptyDatabase(), transactions: JSON.parse(entries[TRANSACTIONS_KEY]) });
   if (Object.hasOwn(entries, LEGACY_EXPENSES_KEY)) validateExpenses(JSON.parse(entries[LEGACY_EXPENSES_KEY]));
   if (Object.hasOwn(entries, EXPENSES_KEY)) validateExpenses(JSON.parse(entries[EXPENSES_KEY]));
