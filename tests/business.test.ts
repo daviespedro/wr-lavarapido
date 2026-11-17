@@ -204,3 +204,20 @@ test('deleting a completed custom service removes only its linked payment and pr
   assert.equal(db.clients[0].visits, 0);
   assert.equal(db.clientVehicles?.[0].plate, 'BRA2E19');
 });
+
+test('deleting a cash entry updates later opening balances and cascades only to its linked service', async () => {
+  const { deleteTransaction, serviceHistory, monthlyLedger } = await import('../src/lib/business');
+  let db = registerVehicle(createEmptyDatabase(), input, 'visit', now);
+  db.vehicles[0].status = 'Finalizado';
+  db = finishVehicle(db, 'visit', 'payment', now, day, 'Crédito');
+  db = addTransaction(db, { id: 'manual', date: day, createdAt: now, description: 'Despesa', type: 'saida', amount: 300 });
+  const nextDay = '2026-11-09';
+  assert.equal(dailyLedger(db.transactions, nextDay, 1000).previousBalance, 12675);
+  db = deleteTransaction(db, 'manual');
+  assert.equal(serviceHistory(db).length, 1);
+  assert.equal(monthlyLedger(db.transactions, '2026-11', 1000).balance, 12975);
+  db = deleteTransaction(db, 'payment');
+  assert.equal(serviceHistory(db).length, 0);
+  assert.equal(db.clients[0].visits, 0);
+  assert.equal(dailyLedger(db.transactions, nextDay, 1000).previousBalance, 1000);
+});

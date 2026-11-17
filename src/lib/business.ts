@@ -134,3 +134,13 @@ export function deleteService(db: Database, id: string): Database {
     transactions: db.transactions.filter(entry => entry.type !== 'entrada' || entry.vehicleId !== id),
   };
 }
+
+export function deleteTransaction(db: Database, id: string): Database {
+  const transaction = db.transactions.find(entry => entry.id === id);
+  if (!transaction) throw new Error('Este lançamento já foi removido.');
+  const serviceId = transaction.type === 'entrada' ? transaction.vehicleId : undefined;
+  if (serviceId && serviceHistory(db).some(service => service.id === serviceId)) {
+    return deleteService(db, serviceId);
+  }
+  return { ...db, transactions: db.transactions.filter(entry => entry.id !== id) };
+}
