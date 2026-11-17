@@ -18,7 +18,7 @@ export function validateDatabase(value: unknown): Database {
     || !db.transactions.every(t => t && typeof t.id === 'string' && t.id.length > 0 && isDate(t.date) && typeof t.description === 'string' && t.description.trim().length > 0 && (t.vehicleId === undefined || typeof t.vehicleId === 'string') && (t.payment === undefined || (t.type === 'entrada' && paymentMethods.includes(t.payment))) && ['entrada', 'saida'].includes(t.type) && Number.isSafeInteger(t.amount) && t.amount > 0 && typeof t.createdAt === 'string' && !Number.isNaN(Date.parse(t.createdAt)))) {
     throw new Error('Os dados salvos não puderam ser lidos. Preserve uma cópia do localStorage antes de restaurar o armazenamento.');
   }
-  if (!unique(db.clients.map(c => c.phone)) || !unique([...db.vehicles, ...(db.completed ?? [])].map(v => v.id)) || !unique(db.vehicles.map(v => v.client.plate)) || !unique(db.transactions.map(t => t.id)) || !unique(db.transactions.filter(t => t.vehicleId !== undefined).map(t => t.vehicleId!))) {
+  if (!unique(db.clients.map(c => c.phone)) || !unique([...db.vehicles, ...(db.completed ?? [])].map(v => v.id)) || !unique(db.vehicles.map(v => v.client.plate).filter(Boolean)) || !unique(db.transactions.map(t => t.id)) || !unique(db.transactions.filter(t => t.vehicleId !== undefined).map(t => t.vehicleId!))) {
     throw new Error('O arquivo contém registros duplicados e não pode ser restaurado.');
   }
   return db.vehicles.some(v => (v.status as string) === 'Pronto')

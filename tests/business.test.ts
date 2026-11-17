@@ -158,3 +158,21 @@ test('legacy expense fields and flags are migrated without charging a paid month
   const db = createEmptyDatabase();
   assert.deepEqual(applyRecurring(db, expenses, logs, '2026-11', new Date(2026, 10, 13)), { db, logs, hasChanges: false });
 });
+
+test('vehicles without plates can coexist and keep separate service histories', async () => {
+  const { registerClient, registerVehicle, finishVehicle, serviceHistory } = await import('../src/lib/business');
+  const { createEmptyDatabase } = await import('../src/lib/data');
+  const { validateDatabase } = await import('../src/lib/database');
+  const first = { name: 'Ana', phone: '11999999999', model: 'Saveiro', plate: '' };
+  const second = { ...first, name: 'Bia', phone: '11888888888' };
+  let db = registerClient(createEmptyDatabase(), first);
+  const now = '2026-11-17T12:00:00.000Z';
+  db = registerVehicle(db, { ...first, serviceId: 'lavagem', amount: 5000 }, 'one', now);
+  db = registerVehicle(db, { ...second, serviceId: 'lavagem', amount: 5000 }, 'two', now);
+  db = validateDatabase(db);
+  db.vehicles[0].status = 'Finalizado';
+  db = finishVehicle(db, 'one', 'transaction-one', now, '2026-11-17', 'PIX');
+  assert.equal(serviceHistory(db)[0].phone, first.phone);
+  assert.equal(db.vehicles[0].client.phone, second.phone);
+  assert.equal(db.transactions[0].description.endsWith('()'), false);
+});

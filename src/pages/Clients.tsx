@@ -54,10 +54,10 @@ export function Clients() {
             <tr key={client.phone}>
               <th scope="row">{client.name}</th>
               <td><WhatsAppLink phone={client.phone}/></td>
-              <td>{vehicles.map(vehicle => vehicle.plate).join(', ')}</td>
+              <td>{vehicles.map(vehicle => vehicle.plate || `Sem placa (${vehicle.model})`).join(', ')}</td>
               <td><div className="flex flex-wrap gap-2">
-                {vehicles.map(vehicle => <button key={vehicle.plate} className="secondary" type="button" onClick={() => setProfile({ ...vehicle, name: client.name })}>
-                  Ver Perfil/Histórico{vehicles.length > 1 ? ` · ${vehicle.plate}` : ''}
+                {vehicles.map(vehicle => <button key={vehicle.plate || vehicle.model} className="secondary" type="button" onClick={() => setProfile({ ...vehicle, name: client.name })}>
+                  Ver Perfil/Histórico{vehicles.length > 1 ? ` · ${vehicle.plate || vehicle.model}` : ''}
                 </button>)}
               </div></td>
             </tr>

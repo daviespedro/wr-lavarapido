@@ -31,7 +31,7 @@ export function NewClientDialog({ onClose, onSaved }: { onClose: () => void; onS
       <div className="field"><label htmlFor="new-client-name">Nome do Cliente</label><input id="new-client-name" name="name" required/></div>
       <div className="field"><label htmlFor="new-client-phone">Telefone</label><input id="new-client-phone" type="tel" placeholder="(XX) XXXXX-XXXX" value={phoneLabel(phone)} onChange={event => setPhone(digits(event.target.value).slice(0, 11))} required/></div>
       <div className="field"><label htmlFor="new-client-model">Modelo do Veículo</label><input id="new-client-model" name="model" placeholder="VW Saveiro G1" required/></div>
-      <div className="field"><label htmlFor="new-client-plate">Placa</label><input id="new-client-plate" placeholder="ABC1D23" value={plate} onChange={event => setPlate(event.target.value.toUpperCase())} maxLength={8} required/></div>
+      <div className="field"><label htmlFor="new-client-plate">Placa (opcional)</label><input id="new-client-plate" placeholder="ABC1D23" value={plate} onChange={event => setPlate(event.target.value.toUpperCase())} maxLength={8}/></div>
       {error && <p className="notice error" role="alert">{error}</p>}
       <button className="primary w-full" type="submit">Salvar Cliente</button>
       <button className="secondary w-full" type="button" onClick={onClose}>Cancelar</button>

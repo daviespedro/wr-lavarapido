@@ -6,5 +6,5 @@ export function whatsappUrl(phone: string, message?: string) {
 }
 
 export function completionUrl(client: Client) {
-  return whatsappUrl(client.phone, `Olá ${client.name}, o serviço no seu ${client.model} (Placa: ${client.plate}) foi finalizado e já está pronto para retirada no WR Lava Rápido!`);
+  return whatsappUrl(client.phone, `Olá ${client.name}, o serviço no seu ${client.model}${client.plate ? ` (Placa: ${client.plate})` : ''} foi finalizado e já está pronto para retirada no WR Lava Rápido!`);
 }

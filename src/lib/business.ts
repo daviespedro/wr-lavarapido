@@ -7,10 +7,10 @@ export function registerVehicle(db: Database, input: ReceptionInput, id: string,
   const plate = input.plate.replace(/[^a-z0-9]/gi, '').toUpperCase();
   if (!/^\d{10,11}$/.test(phone)) throw new Error('Informe um telefone válido com DDD.');
   if (!input.name.trim() || !input.model.trim()) throw new Error('Preencha o nome e o modelo do veículo.');
-  if (!/^[A-Z]{3}\d[A-Z\d]\d{2}$/.test(plate)) throw new Error('Informe uma placa válida (ABC1D23 ou ABC1234).');
+  if (plate && !/^[A-Z]{3}\d[A-Z\d]\d{2}$/.test(plate)) throw new Error('Informe uma placa válida (ABC1D23 ou ABC1234).');
   if (!services.some(s => s.id === input.serviceId)) throw new Error('Selecione um serviço.');
   if (!Number.isSafeInteger(input.amount) || input.amount <= 0) throw new Error('Informe um valor válido maior que zero.');
-  if (db.vehicles.some(v => v.client.plate === plate)) throw new Error('Este veículo já está no pátio.');
+  if (plate && db.vehicles.some(v => v.client.plate === plate)) throw new Error('Este veículo já está no pátio.');
   const previous = db.clients.find(c => c.phone === phone);
   const client = { phone, name: input.name.trim(), model: input.model.trim(), plate, visits: (previous?.visits ?? 0) + 1 };
   const vehicle: Vehicle = { id, client, serviceId: input.serviceId, amount: input.amount, status: 'Aguardando', arrivedAt: now };
@@ -54,7 +54,7 @@ export function finishVehicle(db: Database, id: string, transactionId: string, n
   const next = existing
     ? { ...db, transactions: db.transactions.map(t => t === existing ? { ...t, payment } : t) }
     : addTransaction(db, {
-      id: transactionId, date: day, description: `${services.find(s => s.id === vehicle.serviceId)!.name} — ${vehicle.client.model} (${vehicle.client.plate})`,
+      id: transactionId, date: day, description: `${services.find(s => s.id === vehicle.serviceId)!.name} — ${vehicle.client.model}${vehicle.client.plate ? ` (${vehicle.client.plate})` : ''}`,
       type: 'entrada', amount: vehicle.amount, createdAt: now, vehicleId: id, payment,
     });
   return { ...next, vehicles: db.vehicles.filter(v => v.id !== id), completed: [...(db.completed ?? []), { ...vehicle, completedAt: now }] };
@@ -63,12 +63,12 @@ export function serviceHistory(db: Database) {
   const known = new Set([...db.vehicles, ...(db.completed ?? [])].map(v => v.id));
   // Older releases kept only the linked ledger entry after checkout.
   return [
-    ...(db.completed ?? []).map(v => ({ id: v.id, plate: v.client.plate, description: services.find(s => s.id === v.serviceId)!.name, amount: v.amount, date: localDate(new Date(v.finalizedAt ?? v.completedAt)) })),
-    ...db.vehicles.filter(v => v.status === 'Finalizado').map(v => ({ id: v.id, plate: v.client.plate, description: services.find(s => s.id === v.serviceId)!.name, amount: v.amount, date: localDate(new Date(v.finalizedAt ?? v.arrivedAt)) })),
+    ...(db.completed ?? []).map(v => ({ id: v.id, plate: v.client.plate, phone: v.client.phone, model: v.client.model, description: services.find(s => s.id === v.serviceId)!.name, amount: v.amount, date: localDate(new Date(v.finalizedAt ?? v.completedAt)) })),
+    ...db.vehicles.filter(v => v.status === 'Finalizado').map(v => ({ id: v.id, plate: v.client.plate, phone: v.client.phone, model: v.client.model, description: services.find(s => s.id === v.serviceId)!.name, amount: v.amount, date: localDate(new Date(v.finalizedAt ?? v.arrivedAt)) })),
     ...db.transactions.flatMap(t => {
       const match = / \(([A-Z]{3}\d[A-Z\d]\d{2})\)$/.exec(t.description);
       return t.type === 'entrada' && t.vehicleId && !known.has(t.vehicleId) && match
-        ? [{ id: t.vehicleId, plate: match[1], description: t.description, amount: t.amount, date: t.date }]
+        ? [{ id: t.vehicleId, plate: match[1], phone: undefined, model: undefined, description: t.description, amount: t.amount, date: t.date }]
         : [];
     }),
   ].sort((a, b) => b.date.localeCompare(a.date));
@@ -79,10 +79,10 @@ export function hasVehicleIncome(db: Database, vehicleId: string) {
 
 export function clientsByPlate(db: Database) {
   const clients = new Map<string, Client>();
-  for (const { client } of db.completed ?? []) clients.set(client.plate, client);
-  for (const { client } of db.vehicles) clients.set(client.plate, client);
-  for (const client of db.clientVehicles ?? []) clients.set(client.plate, client);
-  for (const client of db.clients) clients.set(client.plate, client);
+  for (const { client } of db.completed ?? []) clients.set(client.plate || `${client.phone}:${client.model.trim().toLowerCase()}`, client);
+  for (const { client } of db.vehicles) clients.set(client.plate || `${client.phone}:${client.model.trim().toLowerCase()}`, client);
+  for (const client of db.clientVehicles ?? []) clients.set(client.plate || `${client.phone}:${client.model.trim().toLowerCase()}`, client);
+  for (const client of db.clients) clients.set(client.plate || `${client.phone}:${client.model.trim().toLowerCase()}`, client);
   return clients;
 }
 
@@ -92,8 +92,8 @@ export function registerClient(db: Database, input: Pick<Client, 'name' | 'phone
   const plate = input.plate.replace(/[^a-z0-9]/gi, '').toUpperCase();
   if (!name || !model) throw new Error('Informe o nome e o modelo do veículo.');
   if (phone.length !== 11) throw new Error('Informe o telefone com DDD e 9 dígitos.');
-  if (!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)) throw new Error('Informe uma placa válida.');
-  if (clientsByPlate(db).has(plate) || serviceHistory(db).some(service => service.plate === plate)) throw new Error('Esta placa já está cadastrada no sistema');
+  if (plate && !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate)) throw new Error('Informe uma placa válida.');
+  if (plate && (clientsByPlate(db).has(plate) || serviceHistory(db).some(service => service.plate === plate))) throw new Error('Esta placa já está cadastrada no sistema');
   const previous = db.clients.find(client => client.phone === phone);
   const client = { name, phone, model, plate, visits: previous?.visits ?? 0 };
   return { ...db, clientVehicles: [...clientsByPlate(db).values(), client],

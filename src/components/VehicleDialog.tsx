@@ -14,7 +14,7 @@ export function VehicleDialog({ vehicle, incomeRecorded, onClose, onStatus, onFi
   const service = services.find(s => s.id === vehicle.serviceId)!;
   return <dialog ref={ref} className="vehicle-dialog panel" onCancel={onClose} onClick={e => { if (e.target === e.currentTarget) onClose(); }} aria-labelledby="dialog-title"><div>
     <div className="flex items-center justify-between"><p className="eyebrow">ATENDIMENTO</p><button aria-label="Fechar janela do atendimento" onClick={onClose}><X size={21}/></button></div>
-    <h2 id="dialog-title">{vehicle.client.model}</h2><p className="dialog-plate">{vehicle.client.plate}</p>
+    <h2 id="dialog-title">{vehicle.client.model}</h2><p className="dialog-plate">{vehicle.client.plate || 'Sem placa'}</p>
     <dl><div><dt>Cliente</dt><dd>{vehicle.client.name}</dd></div><div><dt>Telefone</dt><dd><WhatsAppLink phone={vehicle.client.phone}/></dd></div><div><dt>Serviço</dt><dd>{service.name}</dd></div><div><dt>Valor</dt><dd>{currency(vehicle.amount)}</dd></div></dl>
     <p className="muted mb-4">Status atual: {vehicle.status}</p>
     {vehicle.status !== 'Finalizado' ? <button className="primary w-full" onClick={() => onStatus(vehicle.status === 'Aguardando' ? 'Em lavagem' : 'Finalizado')}>{vehicle.status === 'Aguardando' ? <ArrowRight size={18}/> : <Check size={18}/>} {vehicle.status === 'Aguardando' ? 'Iniciar lavagem' : 'Marcar como finalizado'}</button> : <form className="checkout-form flex flex-col gap-4 w-full" onSubmit={event => { event.preventDefault(); if (payment) onFinish(payment); }}>
