@@ -221,3 +221,37 @@ test('deleting a cash entry updates later opening balances and cascades only to 
   assert.equal(db.clients[0].visits, 0);
   assert.equal(dailyLedger(db.transactions, nextDay, 1000).previousBalance, 1000);
 });
+
+test('editing customer and a vehicle without a plate updates yard and completed history', async () => {
+  const { updateClientDetails, updateClientVehicle, removeClientVehicle, clientsByPlate, serviceHistory } = await import('../src/lib/business');
+  let db = registerVehicle(createEmptyDatabase(), { ...input, plate: '' }, 'previous', now);
+  db.vehicles[0].status = 'Finalizado';
+  db = finishVehicle(db, 'previous', 'income', now, day, 'PIX');
+  db = registerVehicle(db, { ...input, plate: 'Sem placa' }, 'yard', now);
+  db = updateClientDetails(db, db.clients[0].phone, 'Nome corrigido', '11912345678');
+  db = updateClientVehicle(db, db.clients[0], 'HRV', 'abc1d23');
+  assert.equal(db.vehicles[0].client.name, 'Nome corrigido');
+  assert.equal(db.vehicles[0].client.plate, 'ABC1D23');
+  assert.equal(serviceHistory(db)[0].model, 'HRV');
+  assert.match(db.transactions[0].description, /HRV \(ABC1D23\)/);
+  db = removeClientVehicle(db, db.clients[0]);
+  assert.equal(clientsByPlate(db).size, 0);
+  assert.equal(serviceHistory(db).length, 1);
+  assert.equal(db.vehicles.length, 1);
+});
+
+test('adding a plate through the profile updates the existing vehicle and deleting the customer preserves service records', async () => {
+  const { registerClient, deleteClient, clientsByPlate, serviceHistory } = await import('../src/lib/business');
+  let db = registerVehicle(createEmptyDatabase(), { ...input, plate: '' }, 'visit-to-keep', now);
+  db.vehicles[0].status = 'Finalizado';
+  db = finishVehicle(db, 'visit-to-keep', 'payment-to-keep', now, day, 'PIX');
+  db = registerClient(db, { ...input, plate: 'bra-2e19' }, true);
+  assert.deepEqual([...clientsByPlate(db).keys()], ['BRA2E19']);
+  assert.equal(serviceHistory(db)[0].plate, 'BRA2E19');
+  assert.equal(db.clients[0].visits, 1);
+  db = deleteClient(db, db.clients[0].phone);
+  assert.equal(db.clients.length, 0);
+  assert.equal(clientsByPlate(db).size, 0);
+  assert.equal(serviceHistory(db).length, 1);
+  assert.equal(db.transactions[0].id, 'payment-to-keep');
+});

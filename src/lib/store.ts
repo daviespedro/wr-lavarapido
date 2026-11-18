@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { createEmptyDatabase, services } from './data';
 import type { Client, Database, RecurringExpense, ServiceType } from './types';
-import { digits } from './format';
+import { digits, normalizePlate } from './format';
 import { clientsByPlate } from './business';
 import { validateDatabase } from './database';
 import { applyRecurring, EXPENSES_KEY, LEGACY_EXPENSES_KEY, LOGS_KEY, validateExpenses, validateLogs } from './recurring';
@@ -36,7 +36,7 @@ function readClientVehicles(value: unknown): Client[] {
     const client = entry as StoredClient;
     if (typeof client.id !== 'string' || !Array.isArray(client.veiculos)) throw new Error('Cadastro de clientes inválido.');
     return client.veiculos.map(vehicle => ({
-      name: client.nome, phone: client.telefone, plate: vehicle?.placa, model: vehicle?.modelo, visits: 0,
+      name: client.nome, phone: client.telefone, plate: typeof vehicle?.placa === 'string' ? normalizePlate(vehicle.placa) : vehicle?.placa, model: vehicle?.modelo, visits: 0,
     }));
   });
   return validateDatabase({ ...createEmptyDatabase(), clientVehicles: vehicles }).clientVehicles ?? [];
@@ -48,7 +48,7 @@ function saveClientRegistry(db: Database) {
     registry.set(client.phone, { id: client.phone, nome: client.name, telefone: client.phone, veiculos: [] });
   }
   for (const vehicle of clientsByPlate(db).values()) {
-    registry.get(vehicle.phone)?.veiculos.push({ placa: vehicle.plate, modelo: vehicle.model });
+    registry.get(vehicle.phone)?.veiculos.push({ placa: vehicle.plate || 'Sem placa', modelo: vehicle.model });
   }
   const serialized = JSON.stringify([...registry.values()]);
   if (localStorage.getItem(CLIENTS_KEY) !== serialized) localStorage.setItem(CLIENTS_KEY, serialized);

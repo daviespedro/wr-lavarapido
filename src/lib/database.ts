@@ -1,3 +1,4 @@
+import { normalizePlate } from './format';
 import { paymentMethods, type Client, type Database, type Vehicle } from './types';
 const isClient = (c: Client) => c && typeof c.phone === 'string' && /^\d{10,11}$/.test(c.phone) && typeof c.name === 'string' && typeof c.model === 'string' && typeof c.plate === 'string' && Number.isSafeInteger(c.visits) && c.visits >= 0;
 const isDate = (value: string) => {
@@ -11,13 +12,14 @@ export function validateDatabase(value: unknown): Database {
   const db = value as Database;
   if (!db || db.version !== 2 || !Array.isArray(db.clients) || !Array.isArray(db.vehicles) || !Array.isArray(db.transactions)
     || !db.clients.every(isClient)
+    || (db.removedClientVehicles !== undefined && (!Array.isArray(db.removedClientVehicles) || !db.removedClientVehicles.every(key => typeof key === 'string')))
     || (db.clientVehicles !== undefined && (!Array.isArray(db.clientVehicles) || !db.clientVehicles.every(isClient)))
     || !db.vehicles.every(isVehicle)
     || (db.completed !== undefined && (!Array.isArray(db.completed) || !db.completed.every(v => isVehicle(v) && v.status === 'Finalizado' && typeof v.completedAt === 'string' && !Number.isNaN(Date.parse(v.completedAt)))))
-    || !db.transactions.every(t => t && typeof t.id === 'string' && t.id.length > 0 && isDate(t.date) && typeof t.description === 'string' && t.description.trim().length > 0 && (t.vehicleId === undefined || typeof t.vehicleId === 'string') && (t.payment === undefined || (t.type === 'entrada' && paymentMethods.includes(t.payment))) && ['entrada', 'saida'].includes(t.type) && Number.isSafeInteger(t.amount) && t.amount > 0 && typeof t.createdAt === 'string' && !Number.isNaN(Date.parse(t.createdAt)))) {
+    || !db.transactions.every(t => t && typeof t.id === 'string' && t.id.length > 0 && isDate(t.date) && typeof t.description === 'string' && t.description.trim().length > 0 && (t.serviceClient === undefined || isClient(t.serviceClient)) && (t.vehicleId === undefined || typeof t.vehicleId === 'string') && (t.payment === undefined || (t.type === 'entrada' && paymentMethods.includes(t.payment))) && ['entrada', 'saida'].includes(t.type) && Number.isSafeInteger(t.amount) && t.amount > 0 && typeof t.createdAt === 'string' && !Number.isNaN(Date.parse(t.createdAt)))) {
     throw new Error('Os dados salvos não puderam ser lidos. Preserve uma cópia do localStorage antes de restaurar o armazenamento.');
   }
-  if (!unique(db.clients.map(c => c.phone)) || !unique([...db.vehicles, ...(db.completed ?? [])].map(v => v.id)) || !unique(db.vehicles.map(v => v.client.plate).filter(Boolean)) || !unique(db.transactions.map(t => t.id)) || !unique(db.transactions.filter(t => t.vehicleId !== undefined).map(t => t.vehicleId!))) {
+  if (!unique(db.clients.map(c => c.phone)) || !unique([...db.vehicles, ...(db.completed ?? [])].map(v => v.id)) || !unique(db.vehicles.map(v => normalizePlate(v.client.plate)).filter(Boolean)) || !unique(db.transactions.map(t => t.id)) || !unique(db.transactions.filter(t => t.vehicleId !== undefined).map(t => t.vehicleId!))) {
     throw new Error('O arquivo contém registros duplicados e não pode ser restaurado.');
   }
   return db.vehicles.some(v => (v.status as string) === 'Pronto')

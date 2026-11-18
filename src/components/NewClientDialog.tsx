@@ -26,7 +26,7 @@ export function NewClientDialog({ client, onClose, onSaved }: { client?: Client;
         phone,
         model: String(data.get(`model-${id}`)),
         plate: String(data.get(`plate-${id}`)),
-      }), db));
+      }, !!client), db));
       onSaved();
     } catch (cause) {
       setError((cause as Error).message);
@@ -47,6 +47,7 @@ export function NewClientDialog({ client, onClose, onSaved }: { client?: Client;
         {index > 0 && <button className="secondary" type="button" onClick={() => setVehicles(current => current.filter(vehicle => vehicle !== id))}><Trash2 size={16}/> Remover veículo {index + 1}</button>}
       </fieldset>)}
       <button className="secondary" type="button" onClick={() => { const id = nextVehicle.current++; setVehicles(current => [...current, id]); }}>+ Adicionar outro veículo</button>
+      {client && <p className="muted">Se já houver um veículo deste modelo sem placa, a nova placa será vinculada ao cadastro existente.</p>}
       {error && <p className="notice error" role="alert">{error}</p>}
       <button className="primary w-full" type="submit">{client ? 'Salvar veículo' : 'Salvar Cliente'}</button>
       <button className="secondary w-full" type="button" onClick={onClose}>Cancelar</button>

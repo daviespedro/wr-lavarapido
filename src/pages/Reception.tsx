@@ -3,7 +3,7 @@ import { Yard } from '../components/Yard';
 import { Phone, UserRound, Car, Hash, Sparkles, Plus, Settings, Wallet } from 'lucide-react';
 import { PageHeading, Notice } from '../components/Layout';
 import { ServiceCatalogDialog } from '../components/ServiceCatalogDialog';
-import { digits, phoneLabel } from '../lib/format';
+import { digits, normalizePlate, phoneLabel } from '../lib/format';
 import { commitDatabase, readCatalog, useDatabase } from '../lib/store';
 import { clientsByPlate, registerVehicle } from '../lib/business';
 import type { ReceptionInput } from '../lib/types';
@@ -18,7 +18,7 @@ export function Reception() {
   const [notice, setNotice] = useState<{ message: string; error?: boolean } | null>(null);
   const knownVehicles = [...clientsByPlate(db).values()].filter(vehicle => vehicle.phone === form.phone);
   function changePlate(value: string) {
-    const plate = value.replace(/[^a-z0-9]/gi, '').toUpperCase();
+    const plate = normalizePlate(value);
     const client = clientsByPlate(db).get(plate);
     setForm(current => ({ ...current, ...(client ? { phone: client.phone, name: db.clients.find(entry => entry.phone === client.phone)?.name ?? client.name, model: client.model } : {}), plate }));
   }

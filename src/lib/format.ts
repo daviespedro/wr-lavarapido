@@ -18,3 +18,8 @@ export function parseMoney(value: string): number {
   const numeric = normalized.includes(',') || grouped ? normalized.replace(/\./g, '').replace(',', '.') : normalized;
   return Math.round(Number(numeric) * 100);
 }
+
+export function normalizePlate(value: string) {
+  const plate = value.replace(/[^a-z0-9]/gi, '').toUpperCase();
+  return plate === 'SEMPLACA' ? '' : plate;
+}

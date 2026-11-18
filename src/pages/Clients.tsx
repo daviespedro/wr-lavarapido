@@ -26,7 +26,7 @@ export function Clients() {
   const plateTerm = searchPlate(term);
   const rows = db.clients.map(client => ({
     client,
-    vehicles: vehiclesByPhone.get(client.phone) ?? [client],
+    vehicles: vehiclesByPhone.get(client.phone) ?? [],
   })).filter(({ client, vehicles }) => !term || searchText(client.name).includes(term)
     || vehicles.some(vehicle => searchText(vehicle.model).includes(term)
       || (plateTerm && searchPlate(vehicle.plate).includes(plateTerm))));
@@ -57,7 +57,7 @@ export function Clients() {
               <td><div className="flex flex-wrap gap-2">
                 {vehicles.map(vehicle => <span className="client-plate-tag" key={vehicle.plate || vehicle.model}>{vehicle.plate || `Sem placa (${vehicle.model})`}</span>)}
               </div></td>
-              <td><button className="secondary" type="button" onClick={() => setProfile(client)}>Ver Perfil/Histórico</button></td>
+              <td><button className="secondary" type="button" onClick={() => setProfile(client)}>Gerenciar / Histórico</button></td>
             </tr>
           ))}
           {!rows.length && <tr><td colSpan={4} className="empty-ledger">
@@ -67,6 +67,6 @@ export function Clients() {
       </table>
     </div></div>
     {adding && <NewClientDialog onClose={() => setAdding(false)} onSaved={() => { setQuery(''); setAdding(false); }}/>}
-    {profile && <ClientProfile client={profile} db={db} onClose={() => setProfile(null)}/>}
+    {profile && <ClientProfile client={db.clients.find(client => client.phone === profile.phone) ?? profile} db={db} onClientChanged={phone => setProfile({ ...profile, phone })} onClose={() => setProfile(null)}/>}
   </>;
 }
